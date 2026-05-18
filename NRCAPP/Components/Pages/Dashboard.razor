@@ -1,0 +1,126 @@
+@page "/"
+@inject ReliefAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>نقطة - بوابة الدخول</PageTitle>
+
+<section class="gateway-page" dir="rtl">
+    <div class="gateway-hero">
+        <span class="eyebrow">Gaza Relief Coordination Hub</span>
+        <h2>بوابة واحدة، مساران واضحان: مؤسسة تخطط ومواطن يعرف حقه القريب</h2>
+        <p>
+            اختر نوع الدخول. سيتم توجيه المؤسسة إلى لوحة التخطيط ومنع التكرار، بينما ينتقل المواطن
+            إلى ملف شخصي يعرض المؤسسات والتوزيعات القريبة من منطقته فقط.
+        </p>
+    </div>
+
+    <div class="gateway-tabs" role="tablist" aria-label="نوع المستخدم">
+        <button type="button" class="@(ActiveTab == "org" ? "active" : "")" @onclick='() => ActiveTab = "org"'>مؤسسة</button>
+        <button type="button" class="@(ActiveTab == "citizen" ? "active" : "")" @onclick='() => ActiveTab = "citizen"'>مواطن</button>
+    </div>
+
+    <section class="gateway-grid">
+        @if (ActiveTab == "org")
+        {
+            <article class="form-panel gateway-card">
+                <div class="panel-title">
+                    <span>01</span>
+                    <div>
+                        <h3>دخول المؤسسة</h3>
+                        <p>بعد التحقق، سيتم فتح لوحة المؤسسة الخاصة بها لإنشاء خطط توزيع ومراقبة خريطة الفجوات.</p>
+                    </div>
+                </div>
+
+                <label>رقم ترخيص المؤسسة</label>
+                <input @bind="LicenseId" placeholder="UNRWA-GZA-001" />
+
+                <label>رمز الدخول</label>
+                <input @bind="Passcode" type="password" placeholder="123456" />
+
+                <button type="button" @onclick="LoginOrganization">دخول إلى لوحة المؤسسة</button>
+
+                @if (!string.IsNullOrWhiteSpace(Message))
+                {
+                    <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
+                }
+            </article>
+        }
+        else
+        {
+            <article class="form-panel gateway-card">
+                <div class="panel-title">
+                    <span>02</span>
+                    <div>
+                        <h3>دخول المواطن</h3>
+                        <p>أدخل رقم الهوية والمنطقة الحالية لعرض التوزيعات القريبة والتسجيلات المعتمدة.</p>
+                    </div>
+                </div>
+
+                <label>رقم الهوية الوطنية</label>
+                <input @bind="NationalId" placeholder="900112233" />
+
+                <label>القطاع الحالي</label>
+                <select @bind="CurrentSector">
+                    @foreach (var sector in Sectors)
+                    {
+                        <option value="@sector">@sector</option>
+                    }
+                </select>
+
+                <button type="button" @onclick="LoginCitizen">فتح ملف المواطن</button>
+
+                @if (!string.IsNullOrWhiteSpace(Message))
+                {
+                    <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
+                }
+            </article>
+        }
+
+        <aside class="journey-panel">
+            <h3>كيف تتحرك الرحلة؟</h3>
+            <div class="journey-step"><b>1</b><span>دخول موحد يحدد الدور</span></div>
+            <div class="journey-step"><b>2</b><span>المؤسسة تضيف خطة، والباك إند يمنع التكرار خلال 48 ساعة</span></div>
+            <div class="journey-step"><b>3</b><span>المواطن يرى المؤسسات والتوزيعات القريبة من قطاعه</span></div>
+            <div class="journey-step"><b>4</b><span>طلبات التسجيل وتأكيد الحضور تحفظ في نفس قاعدة البيانات</span></div>
+        </aside>
+    </section>
+</section>
+
+@code {
+    private string ActiveTab { get; set; } = "org";
+    private string LicenseId { get; set; } = "UNRWA-GZA-001";
+    private string Passcode { get; set; } = "123456";
+    private string NationalId { get; set; } = "900112233";
+    private string CurrentSector { get; set; } = "الرمال";
+    private string? Message { get; set; }
+    private bool IsSuccess { get; set; }
+    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+
+    private async Task LoginOrganization()
+    {
+        var response = await AuthService.LoginOrganizationAsync(new OrganizationLoginRequest(LicenseId, Passcode));
+        IsSuccess = response.IsAuthenticated;
+
+        if (!response.IsAuthenticated || response.ActorId is null)
+        {
+            Message = response.Message;
+            return;
+        }
+
+        Navigation.NavigateTo($"/org/dashboard?orgId={response.ActorId}");
+    }
+
+    private async Task LoginCitizen()
+    {
+        var response = await AuthService.LoginIndividualAsync(new IndividualLoginRequest(NationalId));
+        IsSuccess = response.IsAuthenticated;
+
+        if (!response.IsAuthenticated)
+        {
+            Message = response.Message;
+            return;
+        }
+
+        Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId)}&sector={Uri.EscapeDataString(CurrentSector)}");
+    }
+}

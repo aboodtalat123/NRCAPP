@@ -1,0 +1,147 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<div class="app-shell" dir="rtl">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">ن</div>
+            <div>
+                <div class="brand-title">نقطة</div>
+                <div class="brand-subtitle">مركز تنسيق الإغاثة</div>
+            </div>
+        </div>
+
+        <nav class="nav-links" aria-label="التنقل الرئيسي">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="nav-icon">⌂</span>
+                بوابة الدخول
+            </NavLink>
+            <NavLink class="nav-link" href="org/dashboard?orgId=1">
+                <span class="nav-icon">م</span>
+                مسار المؤسسة
+            </NavLink>
+            <NavLink class="nav-link" href="citizen/profile?nationalId=900112233&sector=الرمال">
+                <span class="nav-icon">ف</span>
+                ملف المواطن
+            </NavLink>
+            <NavLink class="nav-link" href="aid-distribution">
+                <span class="nav-icon">✓</span>
+                الجدولة والتوزيع
+            </NavLink>
+            <NavLink class="nav-link" href="gap-detector">
+                <span class="nav-icon">!</span>
+                كشف الفجوات
+            </NavLink>
+            <NavLink class="nav-link" href="analytics">
+                <span class="nav-icon">▦</span>
+                التحليلات
+            </NavLink>
+            <NavLink class="nav-link" href="volunteers">
+                <span class="nav-icon">●</span>
+                المتطوعون
+            </NavLink>
+            <NavLink class="nav-link" href="settings">
+                <span class="nav-icon">⚙</span>
+                الإعدادات
+            </NavLink>
+        </nav>
+
+        <div class="sidebar-user">
+            <span class="user-avatar">م</span>
+            <span>منسقة ميدانية - غزة</span>
+        </div>
+    </aside>
+
+    <main class="main-panel">
+        <header class="topbar">
+            <div class="topbar-title">
+                <h1>@CurrentTitle</h1>
+                <span id="grch-clock" class="clock">جاري تحميل الوقت المحلي...</span>
+            </div>
+
+            <div class="topbar-actions">
+                <div class="status-pill" aria-live="polite">
+                    <span class="status-dot @(IsOffline ? "offline" : "online")"></span>
+                    <span>@(IsOffline ? "غير متصل - حفظ محلي للبيانات" : "متصل - تمت المزامنة")</span>
+                </div>
+                <button type="button" class="toggle-button" @onclick="ToggleOffline">
+                    تبديل وضع الاتصال
+                </button>
+            </div>
+        </header>
+
+        @if (IsOffline && IsDashboard)
+        {
+            <div class="offline-banner">
+                وضع عدم الاتصال مفعل. يتم حفظ البلاغات محلياً وسيتم رفعها عند عودة الشبكة.
+            </div>
+        }
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    حدث خطأ غير متوقع.
+    <a href="." class="reload">إعادة تحميل</a>
+    <span class="dismiss">x</span>
+</div>
+
+@code {
+    private bool IsOffline { get; set; }
+    private string CurrentTitle { get; set; } = "نقطة - بوابة الدخول";
+    private bool IsDashboard { get; set; } = true;
+
+    protected override void OnInitialized()
+    {
+        SetCurrentPage();
+        Navigation.LocationChanged += HandleLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("grchClock.start", "grch-clock");
+        }
+    }
+
+    private void ToggleOffline()
+    {
+        IsOffline = !IsOffline;
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        SetCurrentPage();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void SetCurrentPage()
+    {
+        var rawPath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
+        var path = rawPath.Trim('/').ToLowerInvariant();
+        IsDashboard = string.IsNullOrWhiteSpace(path);
+        CurrentTitle = path switch
+        {
+            "" => "نقطة - بوابة الدخول",
+            "org/dashboard" => "نقطة - مسار المؤسسة",
+            "citizen/profile" => "نقطة - ملف المواطن",
+            "aid-distribution" => "نقطة - الجدولة والتوزيع",
+            "gap-detector" => "نقطة - كشف الفجوات",
+            "analytics" => "نقطة - التحليلات",
+            "volunteers" => "نقطة - المتطوعون",
+            "settings" => "نقطة - الإعدادات",
+            _ => "نقطة - مركز تنسيق الإغاثة"
+        };
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= HandleLocationChanged;
+    }
+}

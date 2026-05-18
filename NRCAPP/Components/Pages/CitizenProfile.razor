@@ -1,0 +1,285 @@
+@page "/citizen/profile"
+@inject ReliefDbContext Db
+
+<PageTitle>نقطة - ملف المواطن</PageTitle>
+
+<section class="role-page" dir="rtl">
+    <div class="role-header citizen">
+        <div>
+            <span class="eyebrow">Citizen Workflow</span>
+            <h2>@CitizenName</h2>
+            <p>كل ما يظهر هنا مفلتر حسب قطاعك الحالي: @EffectiveSector. لا قوائم عامة ولا مشي بلا جدوى.</p>
+        </div>
+        <div class="profile-chip">@NationalId</div>
+    </div>
+
+    <section class="citizen-grid">
+        <article class="form-panel">
+            <div class="panel-title">
+                <span>A</span>
+                <div>
+                    <h3>المؤسسات النشطة في منطقتك</h3>
+                    <p>اضغط طلب تسجيل ليتم إدراج اسمك في أقرب كشف مناسب داخل نفس القطاع.</p>
+                </div>
+            </div>
+
+            <div class="agency-list">
+                @foreach (var agency in ActiveAgencies)
+                {
+                    <div class="agency-card">
+                        <div>
+                            <b>@agency.OrganizationName</b>
+                            <span>@agency.ActivePlans خطة نشطة - أقرب مساعدة: @ToArabicAidType(agency.NextAidType)</span>
+                        </div>
+                        <button type="button" @onclick="() => RequestEnrollment(agency.OrganizationId)">طلب تسجيل/إدراج اسم</button>
+                    </div>
+                }
+                @if (ActiveAgencies.Count == 0)
+                {
+                    <p class="empty-state">لا توجد مؤسسة نشطة في هذا القطاع حالياً.</p>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(EnrollmentMessage))
+            {
+                <div class="result-box success">@EnrollmentMessage</div>
+            }
+        </article>
+
+        <article class="form-panel">
+            <div class="panel-title">
+                <span>B</span>
+                <div>
+                    <h3>أنت مسجل حالياً في</h3>
+                    <p>هذه التوزيعات تم ربطها بهويتك في قاعدة البيانات.</p>
+                </div>
+            </div>
+
+            <div class="timeline-list">
+                @foreach (var item in RegisteredAid)
+                {
+                    <div class="timeline-item">
+                        <b>@item.OrganizationName - @ToArabicAidType(item.AidType)</b>
+                        <span>@item.ScheduledDate.ToLocalTime().ToString("dddd HH:mm")</span>
+                        <small>@ToArabicRegistrationStatus(item.Status)</small>
+                    </div>
+                }
+                @if (RegisteredAid.Count == 0)
+                {
+                    <p class="empty-state">لا توجد تسجيلات مؤكدة حتى الآن.</p>
+                }
+            </div>
+        </article>
+
+        <article class="plans-panel citizen-schedule">
+            <div class="panel-title">
+                <span>C</span>
+                <div>
+                    <h3>أماكن التوزيع الحالية خلال 24 ساعة</h3>
+                    <p>أكد حضورك لتضمن الدور وتساعد المؤسسة على تقدير عدد الحضور.</p>
+                </div>
+            </div>
+
+            <div class="plans-table">
+                <div class="table-head">
+                    <span>المؤسسة</span>
+                    <span>المساعدة</span>
+                    <span>الموعد</span>
+                    <span>الحضور</span>
+                    <span>الإجراء</span>
+                </div>
+                @foreach (var plan in LocalSchedule)
+                {
+                    <div class="table-row">
+                        <span>@plan.OrganizationName</span>
+                        <span>@ToArabicAidType(plan.AidType)</span>
+                        <span>@plan.ScheduledDate.ToLocalTime().ToString("HH:mm")</span>
+                        <span>@plan.ConfirmedAttendance / @plan.Capacity</span>
+                        <span><button type="button" class="mini-button" @onclick="() => ConfirmAttendance(plan.DistributionPlanId)">تأكيد حضور</button></span>
+                    </div>
+                }
+                @if (LocalSchedule.Count == 0)
+                {
+                    <p class="empty-state">لا توجد توزيعات في هذا القطاع خلال 24 ساعة.</p>
+                }
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(AttendanceMessage))
+            {
+                <div class="result-box success">@AttendanceMessage</div>
+            }
+        </article>
+    </section>
+</section>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string NationalId { get; set; } = "900112233";
+
+    [SupplyParameterFromQuery]
+    private string? Sector { get; set; }
+
+    private sealed record AgencyView(int OrganizationId, string OrganizationName, int ActivePlans, AidKind NextAidType);
+    private sealed record RegistrationView(int RegistrationId, int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, RegistrationStatus Status);
+    private sealed record ScheduleView(int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, int Capacity, int ConfirmedAttendance);
+
+    private int BeneficiaryId { get; set; }
+    private string CitizenName { get; set; } = "ملف المواطن";
+    private string EffectiveSector { get; set; } = "الرمال";
+    private List<AgencyView> ActiveAgencies { get; set; } = [];
+    private List<RegistrationView> RegisteredAid { get; set; } = [];
+    private List<ScheduleView> LocalSchedule { get; set; } = [];
+    private string? EnrollmentMessage { get; set; }
+    private string? AttendanceMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCitizenData();
+    }
+
+    private async Task LoadCitizenData()
+    {
+        var beneficiary = await Db.Beneficiaries
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.NationalId == NationalId);
+
+        if (beneficiary is null)
+        {
+            CitizenName = "لم يتم العثور على المواطن";
+            return;
+        }
+
+        BeneficiaryId = beneficiary.Id;
+        CitizenName = beneficiary.FullName;
+        EffectiveSector = string.IsNullOrWhiteSpace(Sector) ? beneficiary.CurrentSector : Sector;
+        var now = DateTimeOffset.UtcNow;
+        var nextDay = now.AddHours(24);
+
+        ActiveAgencies = await Db.DistributionPlans
+            .AsNoTracking()
+            .Include(x => x.Organization)
+            .Where(x => x.TargetSector == EffectiveSector)
+            .Where(x => x.Status == DistributionPlanStatus.Authorized)
+            .Where(x => x.ScheduledDate >= now)
+            .GroupBy(x => new { x.OrganizationId, OrganizationName = x.Organization == null ? "غير معروف" : x.Organization.NgoName })
+            .Select(x => new AgencyView(
+                x.Key.OrganizationId,
+                x.Key.OrganizationName,
+                x.Count(),
+                x.OrderBy(plan => plan.ScheduledDate).Select(plan => plan.AidType).First()))
+            .ToListAsync();
+
+        RegisteredAid = await Db.DistributionRegistrations
+            .AsNoTracking()
+            .Include(x => x.DistributionPlan)
+            .ThenInclude(x => x!.Organization)
+            .Where(x => x.BeneficiaryId == BeneficiaryId)
+            .OrderBy(x => x.DistributionPlan!.ScheduledDate)
+            .Select(x => new RegistrationView(
+                x.Id,
+                x.DistributionPlanId,
+                x.DistributionPlan!.Organization == null ? "غير معروف" : x.DistributionPlan.Organization.NgoName,
+                x.DistributionPlan.AidType,
+                x.DistributionPlan.ScheduledDate,
+                x.Status))
+            .ToListAsync();
+
+        LocalSchedule = await Db.DistributionPlans
+            .AsNoTracking()
+            .Include(x => x.Organization)
+            .Include(x => x.Registrations)
+            .Where(x => x.TargetSector == EffectiveSector)
+            .Where(x => x.Status == DistributionPlanStatus.Authorized)
+            .Where(x => x.ScheduledDate >= now && x.ScheduledDate <= nextDay)
+            .OrderBy(x => x.ScheduledDate)
+            .Select(x => new ScheduleView(
+                x.Id,
+                x.Organization == null ? "غير معروف" : x.Organization.NgoName,
+                x.AidType,
+                x.ScheduledDate,
+                x.MaxBeneficiaryCapacity,
+                x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed)))
+            .ToListAsync();
+    }
+
+    private async Task RequestEnrollment(int organizationId)
+    {
+        var plan = await Db.DistributionPlans
+            .Where(x => x.OrganizationId == organizationId)
+            .Where(x => x.TargetSector == EffectiveSector)
+            .Where(x => x.Status == DistributionPlanStatus.Authorized)
+            .OrderBy(x => x.ScheduledDate)
+            .FirstOrDefaultAsync();
+
+        if (plan is null)
+        {
+            EnrollmentMessage = "لا توجد خطة نشطة لهذه المؤسسة في قطاعك حالياً.";
+            return;
+        }
+
+        var exists = await Db.DistributionRegistrations
+            .AnyAsync(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == plan.Id);
+
+        if (!exists)
+        {
+            Db.DistributionRegistrations.Add(new DistributionRegistration
+            {
+                BeneficiaryId = BeneficiaryId,
+                DistributionPlanId = plan.Id,
+                Status = RegistrationStatus.Requested
+            });
+            await Db.SaveChangesAsync();
+        }
+
+        EnrollmentMessage = exists
+            ? "أنت مسجل مسبقاً في كشف هذه الخطة."
+            : "تم إرسال طلب التسجيل إلى المؤسسة.";
+        await LoadCitizenData();
+    }
+
+    private async Task ConfirmAttendance(int distributionPlanId)
+    {
+        var registration = await Db.DistributionRegistrations
+            .Where(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == distributionPlanId)
+            .FirstOrDefaultAsync();
+
+        if (registration is null)
+        {
+            registration = new DistributionRegistration
+            {
+                BeneficiaryId = BeneficiaryId,
+                DistributionPlanId = distributionPlanId,
+                Status = RegistrationStatus.AttendanceConfirmed,
+                AttendanceConfirmedAt = DateTimeOffset.UtcNow
+            };
+            Db.DistributionRegistrations.Add(registration);
+        }
+        else
+        {
+            registration.Status = RegistrationStatus.AttendanceConfirmed;
+            registration.AttendanceConfirmedAt = DateTimeOffset.UtcNow;
+        }
+
+        await Db.SaveChangesAsync();
+        AttendanceMessage = "تم تأكيد حضورك وحجز دورك في هذا التوزيع.";
+        await LoadCitizenData();
+    }
+
+    private static string ToArabicAidType(AidKind aidType) => aidType switch
+    {
+        AidKind.FoodBasket => "سلة غذائية",
+        AidKind.SafeDrinkingWater => "مياه آمنة",
+        AidKind.MedicalSupplies => "مستلزمات طبية",
+        AidKind.ShelterKits => "حقائب إيواء",
+        _ => aidType.ToString()
+    };
+
+    private static string ToArabicRegistrationStatus(RegistrationStatus status) => status switch
+    {
+        RegistrationStatus.Requested => "طلب قيد المراجعة",
+        RegistrationStatus.Approved => "معتمد",
+        RegistrationStatus.AttendanceConfirmed => "تم تأكيد الحضور",
+        RegistrationStatus.Rejected => "مرفوض",
+        _ => status.ToString()
+    };
+}

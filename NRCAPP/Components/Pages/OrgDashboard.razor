@@ -1,0 +1,221 @@
+@page "/org/dashboard"
+@inject ReliefDbContext Db
+@inject ConflictDetectionService ConflictDetection
+
+<PageTitle>نقطة - لوحة المؤسسة</PageTitle>
+
+<section class="role-page" dir="rtl">
+    <div class="role-header">
+        <div>
+            <span class="eyebrow">Organization Workflow</span>
+            <h2>@OrganizationName</h2>
+            <p>خريطة فجوات حية، ونموذج إضافة خطة توزيع مع منع تلقائي للتكرار خلال نافذة 48 ساعة.</p>
+        </div>
+        <button type="button" class="compact-action" @onclick="ScrollToForm">إنشاء خطة توزيع</button>
+    </div>
+
+    <section class="org-grid">
+        <article class="heatmap-panel">
+            <div class="panel-title">
+                <span>H</span>
+                <div>
+                    <h3>خريطة القطاعات</h3>
+                    <p>الأحمر يعني فجوة حرجة، والأزرق يعني منطقة مخدومة جيداً.</p>
+                </div>
+            </div>
+            <div class="sector-heatmap">
+                @foreach (var sector in SectorHeat)
+                {
+                    <div class="sector-cell @sector.Tone">
+                        <b>@sector.Name</b>
+                        <span>@sector.Note</span>
+                    </div>
+                }
+            </div>
+        </article>
+
+        <article class="form-panel" id="distribution-form">
+            <div class="panel-title">
+                <span>+</span>
+                <div>
+                    <h3>إضافة خطة توزيع جديدة</h3>
+                    <p>إذا كان القطاع مغطى لنفس نوع المساعدة ضمن 48 ساعة سيظهر تحذير ولن يتم اعتمادها.</p>
+                </div>
+            </div>
+
+            <div class="form-columns">
+                <div>
+                    <label>نوع المساعدة</label>
+                    <select @bind="SelectedAidType">
+                        @foreach (var aidType in Enum.GetValues<AidKind>())
+                        {
+                            <option value="@aidType">@ToArabicAidType(aidType)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>المنطقة المستهدفة</label>
+                    <select @bind="TargetSector">
+                        @foreach (var sector in Sectors)
+                        {
+                            <option value="@sector">@sector</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>تاريخ ووقت التوزيع</label>
+                    <input value="@ScheduledDateText" type="datetime-local" @onchange="OnScheduledDateChanged" />
+                </div>
+                <div>
+                    <label>السعة القصوى للمستفيدين</label>
+                    <input @bind="MaxCapacity" type="number" min="1" />
+                </div>
+            </div>
+
+            <button type="button" @onclick="SubmitPlan">حفظ وفحص التكرار</button>
+
+            @if (!string.IsNullOrWhiteSpace(ResultMessage))
+            {
+                <div class="result-box @(PlanAccepted ? "success" : "danger")">@ResultMessage</div>
+            }
+        </article>
+    </section>
+
+    <section class="plans-panel">
+        <div class="panel-title">
+            <span>L</span>
+            <div>
+                <h3>خطط المؤسسة الحالية</h3>
+                <p>يتم تحديث هذه القائمة بعد كل إضافة ناجحة أو تحذير.</p>
+            </div>
+        </div>
+        <div class="plans-table">
+            <div class="table-head">
+                <span>المساعدة</span>
+                <span>القطاع</span>
+                <span>التاريخ</span>
+                <span>السعة</span>
+                <span>الحالة</span>
+            </div>
+            @foreach (var plan in OrganizationPlans)
+            {
+                <div class="table-row">
+                    <span>@ToArabicAidType(plan.AidType)</span>
+                    <span>@plan.TargetSector</span>
+                    <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                    <span>@plan.MaxBeneficiaryCapacity</span>
+                    <span class="status @plan.Status.ToString().ToLowerInvariant()">@ToArabicStatus(plan.Status)</span>
+                </div>
+            }
+        </div>
+    </section>
+</section>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int OrgId { get; set; }
+
+    private sealed record SectorHeatItem(string Name, string Tone, string Note);
+
+    private string OrganizationName { get; set; } = "لوحة المؤسسة";
+    private List<DistributionPlan> OrganizationPlans { get; set; } = [];
+    private List<SectorHeatItem> SectorHeat { get; set; } = [];
+    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+
+    private AidKind SelectedAidType { get; set; } = AidKind.FoodBasket;
+    private string TargetSector { get; set; } = "الرمال";
+    private int MaxCapacity { get; set; } = 250;
+    private string ScheduledDateText { get; set; } = DateTime.Now.AddHours(24).ToString("yyyy-MM-ddTHH:mm");
+    private string? ResultMessage { get; set; }
+    private bool PlanAccepted { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshData();
+    }
+
+    private async Task SubmitPlan()
+    {
+        if (!DateTimeOffset.TryParse(ScheduledDateText, out var scheduledDate))
+        {
+            PlanAccepted = false;
+            ResultMessage = "وقت التوزيع غير صالح.";
+            return;
+        }
+
+        var result = await ConflictDetection.SubmitPlanAsync(new DistributionPlanRequest(
+            SelectedAidType,
+            scheduledDate,
+            31.501m,
+            34.466m,
+            TargetSector,
+            MaxCapacity,
+            OrgId,
+            MaxCapacity));
+
+        PlanAccepted = result.Accepted;
+        ResultMessage = result.Accepted
+            ? "تم حفظ الخطة وتحديث خريطة القطاع فوراً."
+            : $"Conflict Detected: Duplicate delivery active. Redirection recommended. {result.Message}";
+
+        await RefreshData();
+    }
+
+    private async Task RefreshData()
+    {
+        var org = await Db.Organizations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == OrgId);
+        OrganizationName = org is null ? "لوحة المؤسسة" : $"{org.NgoName} - لوحة التخطيط";
+
+        OrganizationPlans = await Db.DistributionPlans
+            .AsNoTracking()
+            .Where(x => x.OrganizationId == OrgId)
+            .OrderByDescending(x => x.ScheduledDate)
+            .Take(8)
+            .ToListAsync();
+
+        var sectorCounts = await Db.DistributionPlans
+            .AsNoTracking()
+            .Where(x => x.Status == DistributionPlanStatus.Authorized)
+            .GroupBy(x => x.TargetSector)
+            .Select(x => new { Sector = x.Key, Count = x.Count() })
+            .ToDictionaryAsync(x => x.Sector, x => x.Count);
+
+        SectorHeat = Sectors.Select(sector =>
+        {
+            var count = sectorCounts.GetValueOrDefault(sector);
+            return count switch
+            {
+                0 => new SectorHeatItem(sector, "critical", "فجوة حرجة"),
+                1 => new SectorHeatItem(sector, "recent", "مخدومة حديثاً"),
+                _ => new SectorHeatItem(sector, "served", "مخدومة جيداً")
+            };
+        }).ToList();
+    }
+
+    private void OnScheduledDateChanged(ChangeEventArgs args)
+    {
+        ScheduledDateText = args.Value?.ToString() ?? ScheduledDateText;
+    }
+
+    private static void ScrollToForm()
+    {
+    }
+
+    private static string ToArabicAidType(AidKind aidType) => aidType switch
+    {
+        AidKind.FoodBasket => "سلة غذائية",
+        AidKind.SafeDrinkingWater => "مياه آمنة",
+        AidKind.MedicalSupplies => "مستلزمات طبية",
+        AidKind.ShelterKits => "حقائب إيواء",
+        _ => aidType.ToString()
+    };
+
+    private static string ToArabicStatus(DistributionPlanStatus status) => status switch
+    {
+        DistributionPlanStatus.Authorized => "معتمدة",
+        DistributionPlanStatus.Warning => "تعارض",
+        DistributionPlanStatus.Completed => "مكتملة",
+        DistributionPlanStatus.Cancelled => "ملغية",
+        _ => "مسودة"
+    };
+}

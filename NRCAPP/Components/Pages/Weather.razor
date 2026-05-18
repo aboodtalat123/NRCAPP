@@ -1,0 +1,11 @@
+@page "/weather"
+@inject NavigationManager Navigation
+
+<PageTitle>نقطة</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.NavigateTo("/analytics");
+    }
+}
