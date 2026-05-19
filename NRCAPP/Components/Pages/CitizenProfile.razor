@@ -95,7 +95,20 @@
                         <span>@ToArabicAidType(plan.AidType)</span>
                         <span>@plan.ScheduledDate.ToLocalTime().ToString("HH:mm")</span>
                         <span>@plan.ConfirmedAttendance / @plan.Capacity</span>
-                        <span><button type="button" class="mini-button" @onclick="() => ConfirmAttendance(plan.DistributionPlanId)">تأكيد حضور</button></span>
+                        <span>
+                            @if (plan.MyStatus == RegistrationStatus.AttendanceConfirmed || plan.MyStatus == RegistrationStatus.Delivered)
+                            {
+                                <span class="pill pill-active">@ToArabicRegistrationStatus(plan.MyStatus.Value)</span>
+                            }
+                            else if (plan.IsRegistered)
+                            {
+                                <button type="button" class="mini-button" @onclick="() => ConfirmAttendance(plan.DistributionPlanId)">تأكيد حضور</button>
+                            }
+                            else
+                            {
+                                <span class="pill pill-pending">سجل أولاً</span>
+                            }
+                        </span>
                     </div>
                 }
                 @if (LocalSchedule.Count == 0)
@@ -155,7 +168,7 @@
 
     private sealed record AgencyView(int OrganizationId, string OrganizationName, int ActivePlans, AidKind NextAidType);
     private sealed record RegistrationView(int RegistrationId, int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, RegistrationStatus Status);
-    private sealed record ScheduleView(int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, int Capacity, int ConfirmedAttendance);
+    private sealed record ScheduleView(int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, int Capacity, int ConfirmedAttendance, bool IsRegistered, RegistrationStatus? MyStatus);
     private sealed record UpcomingDistributionView(string Sector, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate);
 
     private int BeneficiaryId { get; set; }
@@ -241,7 +254,12 @@
                 x.AidType,
                 x.ScheduledDate,
                 x.MaxBeneficiaryCapacity,
-                x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed)))
+                x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed || reg.Status == RegistrationStatus.Delivered),
+                x.Registrations.Any(reg => reg.BeneficiaryId == BeneficiaryId),
+                x.Registrations
+                    .Where(reg => reg.BeneficiaryId == BeneficiaryId)
+                    .Select(reg => (RegistrationStatus?)reg.Status)
+                    .FirstOrDefault()))
             .ToListAsync();
 
         AllUpcomingDistributions = await Db.DistributionPlans
@@ -302,14 +320,8 @@
 
         if (registration is null)
         {
-            registration = new DistributionRegistration
-            {
-                BeneficiaryId = BeneficiaryId,
-                DistributionPlanId = distributionPlanId,
-                Status = RegistrationStatus.AttendanceConfirmed,
-                AttendanceConfirmedAt = DateTimeOffset.UtcNow
-            };
-            Db.DistributionRegistrations.Add(registration);
+            AttendanceMessage = "سجل أولاً في هذه الخطة، وبعدها يمكنك تأكيد الحضور.";
+            return;
         }
         else
         {
@@ -336,6 +348,7 @@
         RegistrationStatus.Requested => "طلب قيد المراجعة",
         RegistrationStatus.Approved => "معتمد",
         RegistrationStatus.AttendanceConfirmed => "تم تأكيد الحضور",
+        RegistrationStatus.Delivered => "تم التسليم",
         RegistrationStatus.Rejected => "مرفوض",
         _ => status.ToString()
     };

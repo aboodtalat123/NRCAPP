@@ -1,0 +1,84 @@
+.admin-login-page {
+    min-height: 100vh;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 22px;
+    padding: 32px 18px;
+    background: linear-gradient(135deg, var(--clr-bg-from) 0%, #1a5c58 52%, #2d6a4f 100%);
+}
+
+.admin-login-card {
+    width: min(430px, 100%);
+    padding: 28px;
+    border-radius: var(--radius-xl);
+    background: #FFFFFF;
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.24);
+}
+
+.admin-login-head {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    margin-bottom: 18px;
+}
+
+.admin-lock {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 10px;
+    border-radius: 50%;
+    background: var(--clr-admin-bg);
+    color: var(--clr-admin-text);
+    font-weight: 950;
+}
+
+.admin-login-head h1 {
+    margin: 6px 0;
+    color: var(--clr-text-primary);
+    font-size: 22px;
+    font-weight: 950;
+}
+
+.admin-login-head p {
+    margin: 0;
+    color: var(--clr-text-muted);
+    font-size: 13px;
+    line-height: 1.7;
+    font-weight: 700;
+}
+
+.admin-login-button {
+    background: var(--clr-admin-bg);
+}
+
+.admin-login-button:hover {
+    background: var(--clr-admin-accent);
+}
+
+.admin-warning {
+    margin-top: 12px;
+    padding: 9px 12px;
+    border: 1px solid #FED7AA;
+    border-radius: var(--radius-sm);
+    background: #FFF7ED;
+    color: #92400E;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.back-link {
+    display: block;
+    margin-top: 15px;
+    color: var(--clr-text-muted);
+    text-align: center;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.back-link:hover {
+    color: var(--clr-admin-bg);
+}

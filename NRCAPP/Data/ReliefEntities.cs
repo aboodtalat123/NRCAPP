@@ -52,6 +52,29 @@ public sealed class Organization
     public ICollection<DistributionPlan> DistributionPlans { get; set; } = [];
 }
 
+public sealed class Admin
+{
+    public int Id { get; set; }
+
+    [MaxLength(64)]
+    public required string Username { get; set; }
+
+    [MaxLength(128)]
+    public required string PasswordHash { get; set; }
+
+    [MaxLength(160)]
+    public required string FullName { get; set; }
+
+    [MaxLength(40)]
+    public string Role { get; set; } = "Admin";
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset? LastLoginAt { get; set; }
+
+    public bool IsActive { get; set; } = true;
+}
+
 public sealed class DistributionPlan
 {
     public int Id { get; set; }
@@ -102,6 +125,8 @@ public sealed class DistributionRegistration
     public DateTimeOffset RequestedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? AttendanceConfirmedAt { get; set; }
+
+    public DateTimeOffset? DeliveredAt { get; set; }
 }
 
 public sealed class SyncQueueItem

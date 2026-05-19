@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using NRCAPP.Api;
 using NRCAPP.Data;
+using System.Security.Claims;
 
 namespace NRCAPP.Services;
 
-public sealed class ReliefAuthService(ReliefDbContext db)
+public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor httpContextAccessor)
 {
     public async Task<AuthResponse> RegisterOrganizationAsync(OrganizationRegistrationRequest request)
     {
@@ -43,6 +46,7 @@ public sealed class ReliefAuthService(ReliefDbContext db)
 
         db.Organizations.Add(organization);
         await db.SaveChangesAsync();
+        await SignInOrganizationAsync(organization);
 
         return new AuthResponse(true, "Organization", organization.Id, organization.NgoName, organization.AccessLevel.ToString(), "تم إنشاء حساب المؤسسة وحفظه في قاعدة البيانات.");
     }
@@ -63,6 +67,8 @@ public sealed class ReliefAuthService(ReliefDbContext db)
         {
             return new AuthResponse(false, "Organization", null, organization.NgoName, "", "رمز الدخول غير صحيح.");
         }
+
+        await SignInOrganizationAsync(organization);
 
         return new AuthResponse(
             true,
@@ -138,16 +144,32 @@ public sealed class ReliefAuthService(ReliefDbContext db)
         return new AuthResponse(true, "Individual", beneficiary.Id, beneficiary.FullName, beneficiary.VerificationStatus.ToString(), "تم إنشاء حساب المواطن وحفظه في قاعدة البيانات.");
     }
 
-    public static AuthResponse LoginAdmin(AdminLoginRequest request)
+    private async Task SignInOrganizationAsync(Organization organization)
     {
-        var username = request.Username.Trim();
-        var password = request.Password.Trim();
-
-        if (username == "admin" && password == "admin")
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext is null)
         {
-            return new AuthResponse(true, "Admin", 0, "مسؤول البرنامج", AccessLevel.Admin.ToString(), "تم دخول مسؤول البرنامج.");
+            return;
         }
 
-        return new AuthResponse(false, "Admin", null, "", "", "اسم المستخدم أو كلمة المرور غير صحيحة.");
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, organization.Id.ToString()),
+            new(ClaimTypes.Name, organization.NgoName),
+            new(ClaimTypes.Role, "OrgManager"),
+            new("actor_type", "Organization"),
+            new("organization_id", organization.Id.ToString())
+        };
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await httpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity),
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+            });
     }
+
 }

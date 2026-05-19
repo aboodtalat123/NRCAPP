@@ -132,10 +132,11 @@ else
     {
         var rawPath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
         var path = rawPath.Trim('/').ToLowerInvariant();
-        IsEntryPage = string.IsNullOrWhiteSpace(path);
+        IsEntryPage = string.IsNullOrWhiteSpace(path) || path == "admin/login";
         CurrentTitle = path switch
         {
             "" => "نقطة - بوابة الدخول",
+            "admin/login" => "نقطة - دخول مسؤول النظام",
             "org/dashboard" => "نقطة - مسار المؤسسة",
             "admin/dashboard" => "نقطة - مسؤول البرنامج",
             "citizen/profile" => "نقطة - ملف المواطن",

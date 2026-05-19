@@ -6,6 +6,7 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
 {
     public DbSet<Beneficiary> Beneficiaries => Set<Beneficiary>();
     public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<Admin> Admins => Set<Admin>();
     public DbSet<DistributionPlan> DistributionPlans => Set<DistributionPlan>();
     public DbSet<DistributionRegistration> DistributionRegistrations => Set<DistributionRegistration>();
     public DbSet<SyncQueueItem> SyncQueueItems => Set<SyncQueueItem>();
@@ -46,6 +47,8 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
                     .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
                 entity.Property(x => x.AttendanceConfirmedAt)
                     .HasConversion(v => v.HasValue ? v.Value.ToUnixTimeMilliseconds() : (long?)null, v => v.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(v.Value) : null);
+                entity.Property(x => x.DeliveredAt)
+                    .HasConversion(v => v.HasValue ? v.Value.ToUnixTimeMilliseconds() : (long?)null, v => v.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(v.Value) : null);
             }
 
             if (isSqlServer)
@@ -77,6 +80,28 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             {
                 entity.Property(x => x.CreatedAt)
                     .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+
+            if (isSqlServer)
+            {
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
+        });
+
+        modelBuilder.Entity<Admin>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.Username).IsUnique();
+            entity.Property(x => x.Username).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.PasswordHash).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.FullName).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Role).HasMaxLength(40).IsRequired();
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.CreatedAt)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+                entity.Property(x => x.LastLoginAt)
+                    .HasConversion(v => v.HasValue ? v.Value.ToUnixTimeMilliseconds() : (long?)null, v => v.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(v.Value) : null);
             }
 
             if (isSqlServer)

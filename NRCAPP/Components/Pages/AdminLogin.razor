@@ -1,0 +1,36 @@
+@page "/admin/login"
+
+<PageTitle>نقطة - دخول مسؤول النظام</PageTitle>
+
+<section class="admin-login-page" dir="rtl">
+    <div class="entry-brand">
+        <span>ن</span>
+        <div>
+            <strong>نقطة</strong>
+            <small>مركز تنسيق الإغاثة</small>
+        </div>
+    </div>
+
+    <article class="admin-login-card">
+        <div class="admin-login-head">
+            <div class="admin-lock">ح</div>
+            <span class="eyebrow">صلاحيات الإدارة العليا</span>
+            <h1>دخول مسؤول النظام</h1>
+            <p>هذا المسار مخصص لمراجعة المؤسسات والخطط والتعارضات وسجل المزامنة.</p>
+        </div>
+
+        <label for="admin-username">اسم المستخدم</label>
+        <input id="admin-username" autocomplete="username" placeholder="admin" />
+
+        <label for="admin-password">كلمة المرور</label>
+        <input id="admin-password" type="password" autocomplete="current-password" placeholder="••••••••" />
+
+        <div id="admin-login-message" class="result-box danger" role="status" hidden></div>
+
+        <button type="button" class="admin-login-button" data-action="login-admin" onclick="window.nrcappForms?.handleEntryAction('login-admin')">دخول إلى لوحة الإدارة</button>
+
+        <div class="admin-warning">هذا الحساب محمي، والمحاولات الفاشلة يتم التعامل معها كحدث أمني.</div>
+
+        <a class="back-link" href="/">العودة إلى بوابة الدخول</a>
+    </article>
+</section>

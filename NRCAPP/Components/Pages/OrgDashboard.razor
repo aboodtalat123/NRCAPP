@@ -1,6 +1,8 @@
 @page "/org/dashboard"
 @inject ReliefDbContext Db
 @inject ConflictDetectionService ConflictDetection
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>نقطة - لوحة المؤسسة</PageTitle>
 
@@ -9,10 +11,29 @@
         <div>
             <span class="eyebrow">مسار المؤسسة</span>
             <h2>@OrganizationName</h2>
-            <p>أضف خطة توزيع واضحة، وسيتم فحص القطاع ونوع المساعدة والتاريخ قبل الاعتماد. إذا وُجد توزيع مشابه خلال 48 ساعة فستُحفظ الخطة كتحذير حتى لا يضيع السجل.</p>
+            <p>هذه اللوحة تعرض خطط مؤسستك فقط: إنشاء خطة، متابعة الكوبونات، رؤية من سجل ومن أكد الحضور، ثم تثبيت التسليم النهائي من طرف المؤسسة.</p>
         </div>
         <a class="compact-action link-action" href="#distribution-form">خطة توزيع جديدة</a>
     </div>
+
+    <section class="admin-stat-grid">
+        <article class="stat-card">
+            <span>خطط المؤسسة</span>
+            <strong>@PlanStats.Count</strong>
+        </article>
+        <article class="stat-card">
+            <span>طلبات تسجيل</span>
+            <strong>@PlanStats.Sum(x => x.RegisteredCount)</strong>
+        </article>
+        <article class="stat-card">
+            <span>حضور مؤكد</span>
+            <strong class="warning">@PlanStats.Sum(x => x.AttendanceCount)</strong>
+        </article>
+        <article class="stat-card">
+            <span>تم التسليم</span>
+            <strong class="success">@PlanStats.Sum(x => x.DeliveredCount)</strong>
+        </article>
+    </section>
 
     <section class="org-grid">
         <article class="heatmap-panel">
@@ -20,7 +41,7 @@
                 <span>خ</span>
                 <div>
                     <h3>خريطة القطاعات</h3>
-                    <p>الأحمر فجوة تحتاج تدخلاً، الذهبي خدمة حديثة، والأزرق قطاع مخدوم بشكل جيد.</p>
+                    <p>الأحمر فجوة تحتاج تدخلاً، الذهبي خدمة حديثة، والأزرق قطاع مخدوم جيداً.</p>
                 </div>
             </div>
             <div class="sector-heatmap">
@@ -39,7 +60,7 @@
                 <span>+</span>
                 <div>
                     <h3>إضافة خطة توزيع</h3>
-                    <p>التاريخ الافتراضي بعد أسبوع. عند التعارض ستظهر رسالة دقيقة مع رقم الخطة المحفوظة كتحذير.</p>
+                    <p>سيتم فحص القطاع ونوع المساعدة والوقت قبل الاعتماد، حتى لا تتكرر المساعدة لنفس القطاع ضمن نافذة قصيرة.</p>
                 </div>
             </div>
 
@@ -67,7 +88,7 @@
                     <input id="plan-scheduled-date" value="@ScheduledDateText" type="datetime-local" @onchange="OnScheduledDateChanged" />
                 </div>
                 <div>
-                    <label>عدد الطرود / الكمية</label>
+                    <label>عدد الكوبونات / الطرود</label>
                     <input id="plan-quantity" @bind="Quantity" @bind:event="oninput" type="number" min="1" />
                 </div>
                 <div class="wide">
@@ -91,29 +112,85 @@
 
     <section class="plans-panel">
         <div class="panel-title">
-            <span>س</span>
+            <span>ك</span>
             <div>
-                <h3>خطط المؤسسة الحالية</h3>
-                <p>تظهر الخطط المعتمدة والتحذيرات معاً حتى تبقى قاعدة البيانات واضحة ولا تختفي المحاولات المتعارضة.</p>
+                <h3>إحصاء الكوبونات حسب الخطة</h3>
+                <p>كل رقم هنا محسوب من تسجيلات المواطنين على خطط مؤسستك فقط.</p>
             </div>
         </div>
         <div class="plans-table">
-            <div class="table-head">
+            <div class="table-head org-stats-head">
                 <span>المساعدة</span>
                 <span>القطاع</span>
-                <span>التاريخ</span>
-                <span>السعة</span>
+                <span>الكوبونات</span>
+                <span>سجل</span>
+                <span>حضر</span>
+                <span>استلم</span>
                 <span>الحالة</span>
             </div>
-            @foreach (var plan in OrganizationPlans)
+            @foreach (var plan in PlanStats)
             {
-                <div class="table-row">
+                <div class="table-row org-stats-row">
                     <span>@ToArabicAidType(plan.AidType)</span>
                     <span>@plan.TargetSector</span>
-                    <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
-                    <span>@plan.MaxBeneficiaryCapacity</span>
+                    <span>@plan.DeliveredCount / @plan.Quantity</span>
+                    <span>@plan.RegisteredCount</span>
+                    <span>@plan.AttendanceCount</span>
+                    <span>@plan.DeliveredCount</span>
                     <span class="status @plan.Status.ToString().ToLowerInvariant()">@ToArabicStatus(plan.Status)</span>
                 </div>
+            }
+            @if (PlanStats.Count == 0)
+            {
+                <p class="empty-state">لا توجد خطط لهذه المؤسسة بعد.</p>
+            }
+        </div>
+    </section>
+
+    <section class="plans-panel">
+        <div class="panel-title">
+            <span>ت</span>
+            <div>
+                <h3>المواطنون المسجلون والحضور والتسليم</h3>
+                <p>المواطن يؤكد حضوره فقط. المؤسسة هي التي تضغط “تم التسليم” عند تسليم المساعدة فعلياً.</p>
+            </div>
+        </div>
+        <div class="plans-table">
+            <div class="table-head delivery-head">
+                <span>المواطن</span>
+                <span>الهوية</span>
+                <span>المساعدة</span>
+                <span>القطاع</span>
+                <span>حالة المواطن</span>
+                <span>إجراء المؤسسة</span>
+            </div>
+            @foreach (var registration in DeliveryQueue)
+            {
+                <div class="table-row delivery-row">
+                    <span>@registration.CitizenName</span>
+                    <span>@registration.NationalId</span>
+                    <span>@ToArabicAidType(registration.AidType)</span>
+                    <span>@registration.TargetSector</span>
+                    <span class="status @registration.Status.ToString().ToLowerInvariant()">@ToArabicRegistrationStatus(registration.Status)</span>
+                    <span>
+                        @if (registration.Status == RegistrationStatus.AttendanceConfirmed)
+                        {
+                            <button type="button" class="mini-button" @onclick="() => ConfirmDelivery(registration.RegistrationId)">تم التسليم</button>
+                        }
+                        else if (registration.Status == RegistrationStatus.Delivered)
+                        {
+                            <span class="pill pill-active">مسلم</span>
+                        }
+                        else
+                        {
+                            <span class="pill pill-pending">بانتظار الحضور</span>
+                        }
+                    </span>
+                </div>
+            }
+            @if (DeliveryQueue.Count == 0)
+            {
+                <p class="empty-state">لا يوجد مواطنون مسجلون على خطط هذه المؤسسة بعد.</p>
             }
         </div>
     </section>
@@ -124,9 +201,12 @@
     private int OrgId { get; set; }
 
     private sealed record SectorHeatItem(string Name, string Tone, string Note);
+    private sealed record PlanStatView(int PlanId, AidKind AidType, string TargetSector, int Quantity, int RegisteredCount, int AttendanceCount, int DeliveredCount, DistributionPlanStatus Status);
+    private sealed record DeliveryView(int RegistrationId, string CitizenName, string NationalId, AidKind AidType, string TargetSector, RegistrationStatus Status);
 
     private string OrganizationName { get; set; } = "لوحة المؤسسة";
-    private List<DistributionPlan> OrganizationPlans { get; set; } = [];
+    private List<PlanStatView> PlanStats { get; set; } = [];
+    private List<DeliveryView> DeliveryQueue { get; set; } = [];
     private List<SectorHeatItem> SectorHeat { get; set; } = [];
     private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
 
@@ -140,7 +220,34 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!ResolveOrganizationFromSession())
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
+
         await RefreshData();
+    }
+
+    private bool ResolveOrganizationFromSession()
+    {
+        var user = HttpContextAccessor.HttpContext?.User;
+        var actorType = user?.FindFirst("actor_type")?.Value;
+        var claimValue = user?.FindFirst("organization_id")?.Value;
+
+        if (actorType != "Organization" || !int.TryParse(claimValue, out var sessionOrgId))
+        {
+            return false;
+        }
+
+        if (OrgId == 0)
+        {
+            OrgId = sessionOrgId;
+            Navigation.NavigateTo($"/org/dashboard?orgId={OrgId}", replace: true);
+            return true;
+        }
+
+        return OrgId == sessionOrgId;
     }
 
     private async Task SubmitPlan()
@@ -170,16 +277,63 @@
         await RefreshData();
     }
 
+    private async Task ConfirmDelivery(int registrationId)
+    {
+        var registration = await Db.DistributionRegistrations
+            .Include(x => x.DistributionPlan)
+            .SingleOrDefaultAsync(x => x.Id == registrationId && x.DistributionPlan!.OrganizationId == OrgId);
+
+        if (registration is null || registration.Status != RegistrationStatus.AttendanceConfirmed)
+        {
+            return;
+        }
+
+        registration.Status = RegistrationStatus.Delivered;
+        registration.DeliveredAt = DateTimeOffset.UtcNow;
+        await Db.SaveChangesAsync();
+        await RefreshData();
+    }
+
     private async Task RefreshData()
     {
-        var org = await Db.Organizations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == OrgId);
-        OrganizationName = org is null ? "يرجى الدخول من بوابة المؤسسة" : $"{org.NgoName} - لوحة التخطيط";
+        var org = await Db.Organizations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == OrgId && x.IsVerified);
+        if (org is null)
+        {
+            Navigation.NavigateTo("/");
+            return;
+        }
 
-        OrganizationPlans = await Db.DistributionPlans
+        OrganizationName = $"{org.NgoName} - لوحة التخطيط والتسليم";
+
+        PlanStats = await Db.DistributionPlans
             .AsNoTracking()
+            .Include(x => x.Registrations)
             .Where(x => x.OrganizationId == OrgId)
             .OrderByDescending(x => x.ScheduledDate)
-            .Take(8)
+            .Select(x => new PlanStatView(
+                x.Id,
+                x.AidType,
+                x.TargetSector,
+                x.Quantity,
+                x.Registrations.Count,
+                x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed || reg.Status == RegistrationStatus.Delivered),
+                x.Registrations.Count(reg => reg.Status == RegistrationStatus.Delivered),
+                x.Status))
+            .ToListAsync();
+
+        DeliveryQueue = await Db.DistributionRegistrations
+            .AsNoTracking()
+            .Include(x => x.Beneficiary)
+            .Include(x => x.DistributionPlan)
+            .Where(x => x.DistributionPlan!.OrganizationId == OrgId)
+            .OrderByDescending(x => x.AttendanceConfirmedAt ?? x.RequestedAt)
+            .Select(x => new DeliveryView(
+                x.Id,
+                x.Beneficiary == null ? "غير معروف" : x.Beneficiary.FullName,
+                x.Beneficiary == null ? "-" : x.Beneficiary.NationalId,
+                x.DistributionPlan!.AidType,
+                x.DistributionPlan.TargetSector,
+                x.Status))
             .ToListAsync();
 
         var sectorCounts = await Db.DistributionPlans
@@ -222,5 +376,15 @@
         DistributionPlanStatus.Completed => "مكتملة",
         DistributionPlanStatus.Cancelled => "ملغية",
         _ => "مسودة"
+    };
+
+    private static string ToArabicRegistrationStatus(RegistrationStatus status) => status switch
+    {
+        RegistrationStatus.Requested => "طلب تسجيل",
+        RegistrationStatus.Approved => "معتمد",
+        RegistrationStatus.AttendanceConfirmed => "حضور مؤكد",
+        RegistrationStatus.Delivered => "تم التسليم",
+        RegistrationStatus.Rejected => "مرفوض",
+        _ => status.ToString()
     };
 }

@@ -3,7 +3,7 @@
     const value = (selector) => (qs(selector)?.value || "").trim();
 
     function showMessage(text, ok) {
-        const box = qs("#entry-message");
+        const box = qs("#entry-message") || qs("#admin-login-message");
         if (!box) {
             return;
         }
@@ -110,6 +110,11 @@
                     password: value("#admin-password")
                 });
                 window.location.assign("/admin/dashboard");
+            }
+
+            if (action === "logout-admin") {
+                await postJson("/api/auth/admin/logout", {});
+                window.location.assign("/admin/login");
             }
         } catch (error) {
             showMessage(error.message, false);

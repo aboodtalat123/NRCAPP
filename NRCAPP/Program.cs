@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using NRCAPP.Api;
 using NRCAPP.Components;
@@ -16,6 +17,17 @@ namespace NRCAPP
 
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+
+            builder.Services
+                .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+                .AddCookie(options =>
+                {
+                    options.LoginPath = "/admin/login";
+                    options.Cookie.Name = "NRCAPP.Auth";
+                    options.SlidingExpiration = true;
+                    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+                });
+            builder.Services.AddAuthorization();
 
             builder.Services.Configure<ForwardedHeadersOptions>(options =>
             {
@@ -55,8 +67,10 @@ namespace NRCAPP
             });
 
             builder.Services.AddScoped<ReliefAuthService>();
+            builder.Services.AddScoped<AdminAuthService>();
             builder.Services.AddScoped<ConflictDetectionService>();
             builder.Services.AddScoped<SyncQueueService>();
+            builder.Services.AddHttpContextAccessor();
 
             var app = builder.Build();
 
@@ -76,6 +90,8 @@ namespace NRCAPP
 
             app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
             app.UseHttpsRedirection();
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.UseAntiforgery();
 
             MapReliefApi(app);
@@ -123,10 +139,22 @@ namespace NRCAPP
                 return result.IsAuthenticated ? Results.Created($"/citizen/profile?nationalId={request.NationalId}", result) : Results.BadRequest(result);
             });
 
-            api.MapPost("/auth/admin", (AdminLoginRequest request) =>
+            api.MapPost("/auth/admin", async (
+                AdminLoginRequest request,
+                AdminAuthService adminAuth) =>
             {
-                var result = ReliefAuthService.LoginAdmin(request);
+                var ok = await adminAuth.LoginAsync(request.Username, request.Password);
+                var admin = adminAuth.Current;
+                var result = ok
+                    ? new AuthResponse(true, "Admin", admin?.Id, admin?.FullName ?? "مسؤول النظام", admin?.Role ?? "Admin", "تم دخول مسؤول النظام.")
+                    : new AuthResponse(false, "Admin", null, "", "", "اسم المستخدم أو كلمة المرور غير صحيحة.");
                 return result.IsAuthenticated ? Results.Ok(result) : Results.Unauthorized();
+            });
+
+            api.MapPost("/auth/admin/logout", async (AdminAuthService adminAuth) =>
+            {
+                await adminAuth.LogoutAsync();
+                return Results.Ok(new { message = "تم تسجيل الخروج." });
             });
 
             api.MapGet("/dashboard/summary", async (ReliefDbContext db) =>
@@ -265,7 +293,7 @@ namespace NRCAPP
                         x.ScheduledDate,
                         x.TargetSector,
                         x.MaxBeneficiaryCapacity,
-                        x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed)))
+                        x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed || reg.Status == RegistrationStatus.Delivered)))
                     .ToListAsync();
 
                 return Results.Ok(new CitizenProfileResponse(
@@ -313,8 +341,11 @@ namespace NRCAPP
                     return Results.NotFound();
                 }
 
-                registration.Status = RegistrationStatus.AttendanceConfirmed;
-                registration.AttendanceConfirmedAt = DateTimeOffset.UtcNow;
+                if (registration.Status != RegistrationStatus.Delivered)
+                {
+                    registration.Status = RegistrationStatus.AttendanceConfirmed;
+                    registration.AttendanceConfirmedAt = DateTimeOffset.UtcNow;
+                }
                 await db.SaveChangesAsync();
 
                 return Results.Ok(new { message = "تم تأكيد الحضور وحجز الدور." });

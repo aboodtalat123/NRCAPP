@@ -1,150 +1,183 @@
 @page "/admin/dashboard"
+@inject AdminAuthService AdminAuth
+@inject NavigationManager Navigation
 @inject ReliefDbContext Db
 
-<PageTitle>نقطة - مسؤول البرنامج</PageTitle>
+<PageTitle>نقطة - لوحة الإدارة</PageTitle>
 
-<section class="role-page" dir="rtl">
-    <div class="role-header">
-        <div>
-            <span class="eyebrow">مسؤول البرنامج</span>
-            <h2>لوحة متابعة التشغيل</h2>
-            <p>أرقام مباشرة من قاعدة البيانات: المؤسسات المسجلة، المواطنين، خطط التوزيع، الأنواع، وما الذي فات موعده ولم يكتمل بعد.</p>
+<section class="admin-shell" dir="rtl">
+    <aside class="admin-sidebar">
+        <div class="admin-brand">
+            <span>ن</span>
+            <div>
+                <strong>نقطة</strong>
+                <small>مسؤول النظام</small>
+            </div>
+            <b>ADMIN</b>
         </div>
-    </div>
 
-    <section class="admin-stat-grid">
-        <article class="stat-card">
-            <span>المؤسسات المسجلة</span>
-            <strong>@OrganizationsCount</strong>
-        </article>
-        <article class="stat-card">
-            <span>المواطنون المسجلون</span>
-            <strong>@CitizensCount</strong>
-        </article>
-        <article class="stat-card">
-            <span>كل خطط التوزيع</span>
-            <strong>@PlansCount</strong>
-        </article>
-        <article class="stat-card">
-            <span>توزيعات مكتملة</span>
-            <strong class="success">@CompletedPlansCount</strong>
-        </article>
-        <article class="stat-card">
-            <span>توزيعات قادمة</span>
-            <strong>@UpcomingPlansCount</strong>
-        </article>
-        <article class="stat-card">
-            <span>فات موعدها ولم تكتمل</span>
-            <strong class="danger">@OverduePlansCount</strong>
-        </article>
-        <article class="stat-card">
-            <span>طلبات تسجيل المواطنين</span>
-            <strong>@RegistrationsCount</strong>
-        </article>
-        <article class="stat-card">
-            <span>حضور مؤكد</span>
-            <strong class="success">@ConfirmedAttendanceCount</strong>
-        </article>
-    </section>
+        <nav class="admin-nav" aria-label="تنقل لوحة الإدارة">
+            <a class="active" href="/admin/dashboard">لوحة الإدارة</a>
+            <a href="/admin/dashboard#organizations">المؤسسات</a>
+            <a href="/admin/dashboard#plans">جميع الخطط</a>
+            <a href="/admin/dashboard#conflicts">التعارضات <span>@ConflictsPrevented</span></a>
+            <a href="/admin/dashboard#sync">المزامنة <span>@PendingSyncCount</span></a>
+            <a href="/analytics">تقارير</a>
+            <button type="button" data-action="logout-admin" onclick="window.nrcappForms?.handleEntryAction('logout-admin')">تسجيل الخروج</button>
+        </nav>
+    </aside>
 
-    <section class="org-grid">
-        <article class="plans-panel">
-            <div class="panel-title">
-                <span>أ</span>
-                <div>
-                    <h3>أنواع المساعدات</h3>
-                    <p>كم خطة موجودة لكل نوع مساعدة.</p>
-                </div>
+    <main class="admin-main">
+        <header class="admin-topbar">
+            <div>
+                <span class="eyebrow">نظرة تشغيلية موحدة</span>
+                <h1>لوحة الإدارة</h1>
+                <p>متابعة المؤسسات، خطط التوزيع، التعارضات التي تم منعها، وحالة المزامنة الميدانية.</p>
             </div>
-            <div class="plans-table compact-table">
-                @foreach (var item in AidTypeCounts)
-                {
-                    <div class="table-row two-col">
-                        <span>@ToArabicAidType(item.AidType)</span>
-                        <span>@item.Count خطة</span>
+            <div class="admin-profile">
+                <span>@(AdminAuth.Current?.FullName ?? "مسؤول النظام")</span>
+                <small>@(AdminAuth.Current?.Role ?? "SuperAdmin")</small>
+            </div>
+        </header>
+
+        <section class="admin-summary-grid">
+            <article>
+                <span>مؤسسات نشطة</span>
+                <strong>@ActiveOrganizationsCount</strong>
+            </article>
+            <article>
+                <span>خطط هذا الشهر</span>
+                <strong>@PlansThisMonthCount</strong>
+            </article>
+            <article>
+                <span>تعارضات مُنعت</span>
+                <strong class="danger">@ConflictsPrevented</strong>
+            </article>
+            <article>
+                <span>مزامنة معلقة</span>
+                <strong class="warning">@PendingSyncCount</strong>
+            </article>
+        </section>
+
+        <section class="admin-content-grid">
+            <article class="admin-panel" id="organizations">
+                <div class="admin-panel-title">
+                    <div>
+                        <h2>المؤسسات</h2>
+                        <p>تفعيل أو تعليق المؤسسات المسجلة في قاعدة البيانات.</p>
                     </div>
-                }
-                @if (AidTypeCounts.Count == 0)
-                {
-                    <p class="empty-state">لا توجد خطط توزيع بعد.</p>
-                }
-            </div>
-        </article>
+                </div>
 
-        <article class="plans-panel">
-            <div class="panel-title">
-                <span>ق</span>
-                <div>
-                    <h3>آخر خطط التوزيع</h3>
-                    <p>أحدث الخطط المحفوظة في النظام.</p>
-                </div>
-            </div>
-            <div class="plans-table">
-                <div class="table-head">
-                    <span>المؤسسة</span>
-                    <span>القطاع</span>
-                    <span>النوع</span>
-                    <span>الموعد</span>
-                    <span>الحالة</span>
-                </div>
-                @foreach (var plan in RecentPlans)
-                {
-                    <div class="table-row">
-                        <span>@plan.OrganizationName</span>
-                        <span>@plan.Sector</span>
-                        <span>@ToArabicAidType(plan.AidType)</span>
-                        <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
-                        <span class="status @plan.Status.ToString().ToLowerInvariant()">@ToArabicStatus(plan.Status)</span>
+                <div class="admin-table org-admin-table">
+                    <div class="admin-table-head">
+                        <span>المؤسسة</span>
+                        <span>رقم الترخيص</span>
+                        <span>عدد الخطط</span>
+                        <span>الحالة</span>
+                        <span>إجراءات</span>
                     </div>
-                }
-                @if (RecentPlans.Count == 0)
-                {
-                    <p class="empty-state">لا توجد خطط توزيع بعد.</p>
-                }
-            </div>
-        </article>
-    </section>
+                    @foreach (var organization in Organizations)
+                    {
+                        <div class="admin-table-row">
+                            <span>@organization.Name</span>
+                            <span>@organization.LicenseId</span>
+                            <span>@organization.PlansCount</span>
+                            <span class="pill @(organization.IsVerified ? "pill-active" : "pill-conflict")">
+                                @(organization.IsVerified ? "فعالة" : "معلقة")
+                            </span>
+                            <button type="button" class="admin-row-button" @onclick="() => ToggleOrganizationAsync(organization.Id)">
+                                @(organization.IsVerified ? "تعليق" : "تفعيل")
+                            </button>
+                        </div>
+                    }
+                    @if (Organizations.Count == 0)
+                    {
+                        <p class="empty-state">لا توجد مؤسسات مسجلة حتى الآن.</p>
+                    }
+                </div>
+            </article>
+
+            <article class="admin-panel" id="plans">
+                <div class="admin-panel-title">
+                    <div>
+                        <h2>أحدث الخطط</h2>
+                        <p>آخر خطط التوزيع عبر القطاعات والمؤسسات.</p>
+                    </div>
+                </div>
+
+                <div class="admin-table plan-admin-table">
+                    <div class="admin-table-head">
+                        <span>المؤسسة</span>
+                        <span>القطاع</span>
+                        <span>المساعدة</span>
+                        <span>الموعد</span>
+                        <span>الحالة</span>
+                    </div>
+                    @foreach (var plan in RecentPlans)
+                    {
+                        <div class="admin-table-row">
+                            <span>@plan.OrganizationName</span>
+                            <span>@plan.Sector</span>
+                            <span>@ToArabicAidType(plan.AidType)</span>
+                            <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                            <span class="pill @ToStatusClass(plan.Status)">@ToArabicStatus(plan.Status)</span>
+                        </div>
+                    }
+                    @if (RecentPlans.Count == 0)
+                    {
+                        <p class="empty-state">لا توجد خطط توزيع بعد.</p>
+                    }
+                </div>
+            </article>
+        </section>
+    </main>
 </section>
 
 @code {
-    private sealed record AidTypeCount(AidKind AidType, int Count);
+    private sealed record OrganizationView(int Id, string Name, string LicenseId, int PlansCount, bool IsVerified);
     private sealed record RecentPlanView(string OrganizationName, string Sector, AidKind AidType, DateTimeOffset ScheduledDate, DistributionPlanStatus Status);
 
-    private int OrganizationsCount { get; set; }
-    private int CitizensCount { get; set; }
-    private int PlansCount { get; set; }
-    private int CompletedPlansCount { get; set; }
-    private int UpcomingPlansCount { get; set; }
-    private int OverduePlansCount { get; set; }
-    private int RegistrationsCount { get; set; }
-    private int ConfirmedAttendanceCount { get; set; }
-    private List<AidTypeCount> AidTypeCounts { get; set; } = [];
+    private int ActiveOrganizationsCount { get; set; }
+    private int PlansThisMonthCount { get; set; }
+    private int ConflictsPrevented { get; set; }
+    private int PendingSyncCount { get; set; }
+    private List<OrganizationView> Organizations { get; set; } = [];
     private List<RecentPlanView> RecentPlans { get; set; } = [];
 
     protected override async Task OnInitializedAsync()
     {
+        if (!AdminAuth.IsLoggedIn())
+        {
+            Navigation.NavigateTo("/admin/login");
+            return;
+        }
+
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
         var now = DateTimeOffset.UtcNow;
+        var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var nextMonth = monthStart.AddMonths(1);
 
-        OrganizationsCount = await Db.Organizations.AsNoTracking().CountAsync();
-        CitizensCount = await Db.Beneficiaries.AsNoTracking().CountAsync();
-        PlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync();
-        CompletedPlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Completed);
-        UpcomingPlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now);
-        OverduePlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate < now);
-        RegistrationsCount = await Db.DistributionRegistrations.AsNoTracking().CountAsync();
-        ConfirmedAttendanceCount = await Db.DistributionRegistrations.AsNoTracking().CountAsync(x => x.Status == RegistrationStatus.AttendanceConfirmed);
+        ActiveOrganizationsCount = await Db.Organizations.AsNoTracking().CountAsync(x => x.IsVerified);
+        PlansThisMonthCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.ScheduledDate >= monthStart && x.ScheduledDate < nextMonth);
+        ConflictsPrevented = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Warning);
+        PendingSyncCount = await Db.SyncQueueItems.AsNoTracking().CountAsync(x => x.SyncStatus == SyncStatus.Pending);
 
-        AidTypeCounts = await Db.DistributionPlans
+        Organizations = await Db.Organizations
             .AsNoTracking()
-            .GroupBy(x => x.AidType)
-            .Select(x => new AidTypeCount(x.Key, x.Count()))
+            .Include(x => x.DistributionPlans)
+            .OrderBy(x => x.NgoName)
+            .Select(x => new OrganizationView(x.Id, x.NgoName, x.LicenseId, x.DistributionPlans.Count, x.IsVerified))
             .ToListAsync();
 
         RecentPlans = await Db.DistributionPlans
             .AsNoTracking()
             .Include(x => x.Organization)
             .OrderByDescending(x => x.CreatedAt)
-            .Take(10)
+            .Take(12)
             .Select(x => new RecentPlanView(
                 x.Organization == null ? "غير معروف" : x.Organization.NgoName,
                 x.TargetSector,
@@ -152,6 +185,19 @@
                 x.ScheduledDate,
                 x.Status))
             .ToListAsync();
+    }
+
+    private async Task ToggleOrganizationAsync(int id)
+    {
+        var organization = await Db.Organizations.SingleOrDefaultAsync(x => x.Id == id);
+        if (organization is null)
+        {
+            return;
+        }
+
+        organization.IsVerified = !organization.IsVerified;
+        await Db.SaveChangesAsync();
+        await LoadDashboardAsync();
     }
 
     private static string ToArabicAidType(AidKind aidType) => aidType switch
@@ -166,9 +212,17 @@
     private static string ToArabicStatus(DistributionPlanStatus status) => status switch
     {
         DistributionPlanStatus.Authorized => "معتمدة",
-        DistributionPlanStatus.Warning => "تحذير",
+        DistributionPlanStatus.Warning => "تعارض",
         DistributionPlanStatus.Completed => "مكتملة",
         DistributionPlanStatus.Cancelled => "ملغية",
         _ => "مسودة"
+    };
+
+    private static string ToStatusClass(DistributionPlanStatus status) => status switch
+    {
+        DistributionPlanStatus.Authorized => "pill-active",
+        DistributionPlanStatus.Warning => "pill-conflict",
+        DistributionPlanStatus.Completed => "pill-done",
+        _ => "pill-pending"
     };
 }

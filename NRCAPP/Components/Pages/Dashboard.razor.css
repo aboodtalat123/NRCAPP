@@ -100,6 +100,29 @@
     color: #FFFFFF;
 }
 
+.role-switch button[data-role-target="admin"].active {
+    background: var(--clr-admin-bg);
+}
+
+.admin-gateway-link {
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+    margin-top: 16px;
+    border-radius: 9px;
+    background: var(--clr-admin-bg);
+    color: #FFFFFF;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 950;
+    box-shadow: 0 10px 18px rgba(30, 58, 95, 0.2);
+}
+
+.admin-gateway-link:hover {
+    background: var(--clr-admin-accent);
+    color: #FFFFFF;
+}
+
 .entry-panel .gateway-card {
     min-height: 0;
     margin-top: 14px;
@@ -486,6 +509,16 @@ button:hover {
     align-items: center;
 }
 
+.org-stats-head,
+.org-stats-row {
+    grid-template-columns: 1fr 0.9fr 0.8fr 0.55fr 0.55fr 0.55fr 0.8fr;
+}
+
+.delivery-head,
+.delivery-row {
+    grid-template-columns: 1fr 0.9fr 0.9fr 0.8fr 0.9fr 1fr;
+}
+
 .table-head {
     padding: 0 10px 6px;
     color: #657873;
@@ -519,6 +552,18 @@ button:hover {
 .status.warning {
     background: #FFF4CF;
     color: #755612;
+}
+
+.status.requested,
+.status.approved,
+.status.attendanceconfirmed {
+    background: var(--clr-status-pending);
+    color: var(--clr-status-pending-text);
+}
+
+.status.delivered {
+    background: var(--clr-status-done);
+    color: var(--clr-status-done-text);
 }
 
 @keyframes live-pulse {

@@ -42,5 +42,6 @@ public enum RegistrationStatus
     Requested = 0,
     Approved = 1,
     AttendanceConfirmed = 2,
-    Rejected = 3
+    Delivered = 3,
+    Rejected = 4
 }
