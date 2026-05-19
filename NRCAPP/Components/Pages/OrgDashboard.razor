@@ -39,7 +39,7 @@
                 <span>+</span>
                 <div>
                     <h3>إضافة خطة توزيع</h3>
-                    <p>التاريخ الافتراضي بعد أسبوع حتى لا يصطدم ببيانات العرض الجاهزة. عند التعارض ستظهر رسالة دقيقة مع رقم الخطة المحفوظة كتحذير.</p>
+                    <p>التاريخ الافتراضي بعد أسبوع. عند التعارض ستظهر رسالة دقيقة مع رقم الخطة المحفوظة كتحذير.</p>
                 </div>
             </div>
 
@@ -68,11 +68,11 @@
                 </div>
                 <div>
                     <label>عدد الطرود / الكمية</label>
-                    <input @bind="Quantity" type="number" min="1" />
+                    <input @bind="Quantity" @bind:event="oninput" type="number" min="1" />
                 </div>
                 <div class="wide">
                     <label>السعة القصوى للمستفيدين</label>
-                    <input @bind="MaxCapacity" type="number" min="1" />
+                    <input @bind="MaxCapacity" @bind:event="oninput" type="number" min="1" />
                 </div>
             </div>
 
@@ -136,11 +136,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (OrgId <= 0)
-        {
-            OrgId = await Db.Organizations.AsNoTracking().OrderBy(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync();
-        }
-
         await RefreshData();
     }
 
@@ -174,7 +169,7 @@
     private async Task RefreshData()
     {
         var org = await Db.Organizations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == OrgId);
-        OrganizationName = org is null ? "لوحة المؤسسة" : $"{org.NgoName} - لوحة التخطيط";
+        OrganizationName = org is null ? "يرجى الدخول من بوابة المؤسسة" : $"{org.NgoName} - لوحة التخطيط";
 
         OrganizationPlans = await Db.DistributionPlans
             .AsNoTracking()

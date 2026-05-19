@@ -109,12 +109,46 @@
                 <div class="result-box success">@AttendanceMessage</div>
             }
         </article>
+
+        <article class="plans-panel citizen-schedule">
+            <div class="panel-title">
+                <span>د</span>
+                <div>
+                    <h3>كل التوزيعات القادمة</h3>
+                    <p>هذه قائمة عامة تساعدك تعرف أين توجد توزيعات قادمة، مع إبراز التوزيعات داخل قطاعك.</p>
+                </div>
+            </div>
+
+            <div class="plans-table">
+                <div class="table-head">
+                    <span>القطاع</span>
+                    <span>المؤسسة</span>
+                    <span>المساعدة</span>
+                    <span>الموعد</span>
+                    <span>الحالة</span>
+                </div>
+                @foreach (var plan in AllUpcomingDistributions)
+                {
+                    <div class="table-row @(plan.Sector == EffectiveSector ? "highlight-row" : "")">
+                        <span>@plan.Sector</span>
+                        <span>@plan.OrganizationName</span>
+                        <span>@ToArabicAidType(plan.AidType)</span>
+                        <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                        <span>@(plan.Sector == EffectiveSector ? "ضمن منطقتك" : "منطقة أخرى")</span>
+                    </div>
+                }
+                @if (AllUpcomingDistributions.Count == 0)
+                {
+                    <p class="empty-state">لا توجد توزيعات قادمة منشورة حالياً.</p>
+                }
+            </div>
+        </article>
     </section>
 </section>
 
 @code {
     [SupplyParameterFromQuery]
-    private string NationalId { get; set; } = "900112233";
+    private string NationalId { get; set; } = "";
 
     [SupplyParameterFromQuery]
     private string? Sector { get; set; }
@@ -122,13 +156,15 @@
     private sealed record AgencyView(int OrganizationId, string OrganizationName, int ActivePlans, AidKind NextAidType);
     private sealed record RegistrationView(int RegistrationId, int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, RegistrationStatus Status);
     private sealed record ScheduleView(int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, int Capacity, int ConfirmedAttendance);
+    private sealed record UpcomingDistributionView(string Sector, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate);
 
     private int BeneficiaryId { get; set; }
     private string CitizenName { get; set; } = "ملف المواطن";
-    private string EffectiveSector { get; set; } = "الرمال";
+    private string EffectiveSector { get; set; } = "";
     private List<AgencyView> ActiveAgencies { get; set; } = [];
     private List<RegistrationView> RegisteredAid { get; set; } = [];
     private List<ScheduleView> LocalSchedule { get; set; } = [];
+    private List<UpcomingDistributionView> AllUpcomingDistributions { get; set; } = [];
     private string? EnrollmentMessage { get; set; }
     private string? AttendanceMessage { get; set; }
 
@@ -139,6 +175,13 @@
 
     private async Task LoadCitizenData()
     {
+        if (string.IsNullOrWhiteSpace(NationalId))
+        {
+            CitizenName = "يرجى الدخول من بوابة المواطن";
+            EffectiveSector = string.IsNullOrWhiteSpace(Sector) ? "غير محدد" : Sector.Trim();
+            return;
+        }
+
         var beneficiary = await Db.Beneficiaries
             .AsNoTracking()
             .SingleOrDefaultAsync(x => x.NationalId == NationalId.Trim());
@@ -199,6 +242,20 @@
                 x.ScheduledDate,
                 x.MaxBeneficiaryCapacity,
                 x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed)))
+            .ToListAsync();
+
+        AllUpcomingDistributions = await Db.DistributionPlans
+            .AsNoTracking()
+            .Include(x => x.Organization)
+            .Where(x => x.Status == DistributionPlanStatus.Authorized)
+            .Where(x => x.ScheduledDate >= now)
+            .OrderBy(x => x.ScheduledDate)
+            .Take(30)
+            .Select(x => new UpcomingDistributionView(
+                x.TargetSector,
+                x.Organization == null ? "غير معروف" : x.Organization.NgoName,
+                x.AidType,
+                x.ScheduledDate))
             .ToListAsync();
     }
 

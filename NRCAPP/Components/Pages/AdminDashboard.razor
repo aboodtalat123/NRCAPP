@@ -1,0 +1,174 @@
+@page "/admin/dashboard"
+@inject ReliefDbContext Db
+
+<PageTitle>نقطة - مسؤول البرنامج</PageTitle>
+
+<section class="role-page" dir="rtl">
+    <div class="role-header">
+        <div>
+            <span class="eyebrow">مسؤول البرنامج</span>
+            <h2>لوحة متابعة التشغيل</h2>
+            <p>أرقام مباشرة من قاعدة البيانات: المؤسسات المسجلة، المواطنين، خطط التوزيع، الأنواع، وما الذي فات موعده ولم يكتمل بعد.</p>
+        </div>
+    </div>
+
+    <section class="admin-stat-grid">
+        <article class="stat-card">
+            <span>المؤسسات المسجلة</span>
+            <strong>@OrganizationsCount</strong>
+        </article>
+        <article class="stat-card">
+            <span>المواطنون المسجلون</span>
+            <strong>@CitizensCount</strong>
+        </article>
+        <article class="stat-card">
+            <span>كل خطط التوزيع</span>
+            <strong>@PlansCount</strong>
+        </article>
+        <article class="stat-card">
+            <span>توزيعات مكتملة</span>
+            <strong class="success">@CompletedPlansCount</strong>
+        </article>
+        <article class="stat-card">
+            <span>توزيعات قادمة</span>
+            <strong>@UpcomingPlansCount</strong>
+        </article>
+        <article class="stat-card">
+            <span>فات موعدها ولم تكتمل</span>
+            <strong class="danger">@OverduePlansCount</strong>
+        </article>
+        <article class="stat-card">
+            <span>طلبات تسجيل المواطنين</span>
+            <strong>@RegistrationsCount</strong>
+        </article>
+        <article class="stat-card">
+            <span>حضور مؤكد</span>
+            <strong class="success">@ConfirmedAttendanceCount</strong>
+        </article>
+    </section>
+
+    <section class="org-grid">
+        <article class="plans-panel">
+            <div class="panel-title">
+                <span>أ</span>
+                <div>
+                    <h3>أنواع المساعدات</h3>
+                    <p>كم خطة موجودة لكل نوع مساعدة.</p>
+                </div>
+            </div>
+            <div class="plans-table compact-table">
+                @foreach (var item in AidTypeCounts)
+                {
+                    <div class="table-row two-col">
+                        <span>@ToArabicAidType(item.AidType)</span>
+                        <span>@item.Count خطة</span>
+                    </div>
+                }
+                @if (AidTypeCounts.Count == 0)
+                {
+                    <p class="empty-state">لا توجد خطط توزيع بعد.</p>
+                }
+            </div>
+        </article>
+
+        <article class="plans-panel">
+            <div class="panel-title">
+                <span>ق</span>
+                <div>
+                    <h3>آخر خطط التوزيع</h3>
+                    <p>أحدث الخطط المحفوظة في النظام.</p>
+                </div>
+            </div>
+            <div class="plans-table">
+                <div class="table-head">
+                    <span>المؤسسة</span>
+                    <span>القطاع</span>
+                    <span>النوع</span>
+                    <span>الموعد</span>
+                    <span>الحالة</span>
+                </div>
+                @foreach (var plan in RecentPlans)
+                {
+                    <div class="table-row">
+                        <span>@plan.OrganizationName</span>
+                        <span>@plan.Sector</span>
+                        <span>@ToArabicAidType(plan.AidType)</span>
+                        <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                        <span class="status @plan.Status.ToString().ToLowerInvariant()">@ToArabicStatus(plan.Status)</span>
+                    </div>
+                }
+                @if (RecentPlans.Count == 0)
+                {
+                    <p class="empty-state">لا توجد خطط توزيع بعد.</p>
+                }
+            </div>
+        </article>
+    </section>
+</section>
+
+@code {
+    private sealed record AidTypeCount(AidKind AidType, int Count);
+    private sealed record RecentPlanView(string OrganizationName, string Sector, AidKind AidType, DateTimeOffset ScheduledDate, DistributionPlanStatus Status);
+
+    private int OrganizationsCount { get; set; }
+    private int CitizensCount { get; set; }
+    private int PlansCount { get; set; }
+    private int CompletedPlansCount { get; set; }
+    private int UpcomingPlansCount { get; set; }
+    private int OverduePlansCount { get; set; }
+    private int RegistrationsCount { get; set; }
+    private int ConfirmedAttendanceCount { get; set; }
+    private List<AidTypeCount> AidTypeCounts { get; set; } = [];
+    private List<RecentPlanView> RecentPlans { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        OrganizationsCount = await Db.Organizations.AsNoTracking().CountAsync();
+        CitizensCount = await Db.Beneficiaries.AsNoTracking().CountAsync();
+        PlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync();
+        CompletedPlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Completed);
+        UpcomingPlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now);
+        OverduePlansCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate < now);
+        RegistrationsCount = await Db.DistributionRegistrations.AsNoTracking().CountAsync();
+        ConfirmedAttendanceCount = await Db.DistributionRegistrations.AsNoTracking().CountAsync(x => x.Status == RegistrationStatus.AttendanceConfirmed);
+
+        AidTypeCounts = await Db.DistributionPlans
+            .AsNoTracking()
+            .GroupBy(x => x.AidType)
+            .Select(x => new AidTypeCount(x.Key, x.Count()))
+            .ToListAsync();
+
+        RecentPlans = await Db.DistributionPlans
+            .AsNoTracking()
+            .Include(x => x.Organization)
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(10)
+            .Select(x => new RecentPlanView(
+                x.Organization == null ? "غير معروف" : x.Organization.NgoName,
+                x.TargetSector,
+                x.AidType,
+                x.ScheduledDate,
+                x.Status))
+            .ToListAsync();
+    }
+
+    private static string ToArabicAidType(AidKind aidType) => aidType switch
+    {
+        AidKind.FoodBasket => "سلة غذائية",
+        AidKind.SafeDrinkingWater => "مياه آمنة",
+        AidKind.MedicalSupplies => "مستلزمات طبية",
+        AidKind.ShelterKits => "حقائب إيواء",
+        _ => aidType.ToString()
+    };
+
+    private static string ToArabicStatus(DistributionPlanStatus status) => status switch
+    {
+        DistributionPlanStatus.Authorized => "معتمدة",
+        DistributionPlanStatus.Warning => "تحذير",
+        DistributionPlanStatus.Completed => "مكتملة",
+        DistributionPlanStatus.Cancelled => "ملغية",
+        _ => "مسودة"
+    };
+}

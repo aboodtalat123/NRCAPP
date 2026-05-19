@@ -4,7 +4,22 @@ namespace NRCAPP.Api;
 
 public sealed record OrganizationLoginRequest(string LicenseId, string Passcode);
 
+public sealed record OrganizationRegistrationRequest(
+    string LicenseId,
+    string NgoName,
+    string AuthorizedPerson,
+    string Passcode);
+
 public sealed record IndividualLoginRequest(string NationalId);
+
+public sealed record CitizenRegistrationRequest(
+    string NationalId,
+    string FullName,
+    int FamilyMembersCount,
+    string CurrentSector,
+    string PhoneNumber);
+
+public sealed record AdminLoginRequest(string Username, string Password);
 
 public sealed record AuthResponse(
     bool IsAuthenticated,

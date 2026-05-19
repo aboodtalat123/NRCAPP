@@ -4,96 +4,235 @@
 
 <PageTitle>نقطة - بوابة الدخول</PageTitle>
 
-<section class="gateway-page" dir="rtl">
-    <div class="gateway-hero">
-        <span class="eyebrow">Gaza Relief Coordination Hub</span>
-        <h2>دخول بسيط للمؤسسة والمواطن من مكان واحد</h2>
-        <p>
-            المؤسسة تدخل برقم الترخيص والرمز لإضافة خطط التوزيع وفحص التكرار. المواطن يدخل برقم الهوية ليرى المساعدات القريبة من قطاعه ويسجل حضوره بسهولة.
-        </p>
+<section class="entry-gateway" dir="rtl">
+    <div class="entry-brand">
+        <span>ن</span>
+        <div>
+            <strong>نقطة</strong>
+            <small>مركز تنسيق الإغاثة</small>
+        </div>
     </div>
 
-    <div class="gateway-tabs" role="tablist" aria-label="نوع المستخدم">
-        <button type="button" class="@(ActiveTab == "org" ? "active" : "")" @onclick='() => ActiveTab = "org"'>مؤسسة</button>
-        <button type="button" class="@(ActiveTab == "citizen" ? "active" : "")" @onclick='() => ActiveTab = "citizen"'>مواطن</button>
-    </div>
+    <section class="entry-panel" aria-labelledby="entry-title">
+        <div class="entry-copy">
+            <span class="eyebrow">Gaza Relief Coordination Hub</span>
+            <h1 id="entry-title">بوابة رسمية تبدأ بقاعدة بيانات فارغة</h1>
+            <p>اختر نوع الدخول. المؤسسة تضيف خطط التوزيع، المواطن ينشئ حساباً ثم يرى التوزيعات في منطقته وباقي المناطق، ومسؤول البرنامج يراقب الأرقام العامة.</p>
+        </div>
 
-    <section class="gateway-grid">
-        @if (ActiveTab == "org")
+        <div class="role-switch" role="tablist" aria-label="نوع الدخول">
+            <button type="button" class="@(ActiveRole == "org" ? "active" : "")" @onclick='() => SelectRole("org")'>مؤسسة</button>
+            <button type="button" class="@(ActiveRole == "citizen" ? "active" : "")" @onclick='() => SelectRole("citizen")'>مواطن</button>
+            <button type="button" class="@(ActiveRole == "admin" ? "active" : "")" @onclick='() => SelectRole("admin")'>مسؤول</button>
+        </div>
+
+        @if (ActiveRole == "org")
         {
-            <article class="form-panel gateway-card">
-                <div class="panel-title">
-                    <span>م</span>
-                    <div>
-                        <h3>دخول المؤسسة</h3>
-                        <p>بيانات تجربة جاهزة: UNRWA-GZA-001 والرمز 123456.</p>
+            <div class="auth-mode" role="tablist" aria-label="إجراء المؤسسة">
+                <button type="button" class="@(OrganizationMode == "register" ? "active" : "")" @onclick='() => SelectOrganizationMode("register")'>إنشاء مؤسسة</button>
+                <button type="button" class="@(OrganizationMode == "login" ? "active" : "")" @onclick='() => SelectOrganizationMode("login")'>دخول مؤسسة</button>
+            </div>
+
+            @if (OrganizationMode == "register")
+            {
+                <article class="form-panel gateway-card">
+                    <div class="panel-title">
+                        <span>01</span>
+                        <div>
+                            <h3>إنشاء حساب مؤسسة</h3>
+                            <p>أدخل بياناتك الرسمية. بعد الحفظ ستنتقل مباشرة إلى لوحة المؤسسة لإضافة أول خطة توزيع.</p>
+                        </div>
                     </div>
-                </div>
 
-                <label>رقم ترخيص المؤسسة</label>
-                <input @bind="LicenseId" placeholder="UNRWA-GZA-001" />
+                    <label>اسم المؤسسة</label>
+                    <input @bind="RegisterNgoName" @bind:event="oninput" autocomplete="organization" placeholder="اسم المؤسسة الرسمي" />
 
-                <label>رمز الدخول</label>
-                <input @bind="Passcode" type="password" placeholder="123456" />
+                    <label>رقم الترخيص</label>
+                    <input @bind="RegisterLicenseId" @bind:event="oninput" autocomplete="off" placeholder="رقم الترخيص الرسمي" />
 
-                <button type="button" @onclick="LoginOrganization">دخول إلى لوحة المؤسسة</button>
+                    <label>الشخص المخول</label>
+                    <input @bind="RegisterAuthorizedPerson" @bind:event="oninput" autocomplete="name" placeholder="اسم المسؤول المخول" />
 
-                @if (!string.IsNullOrWhiteSpace(Message))
-                {
-                    <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
-                }
-            </article>
+                    <label>رمز الدخول</label>
+                    <input @bind="RegisterPasscode" @bind:event="oninput" type="password" autocomplete="new-password" placeholder="6 خانات على الأقل" />
+
+                    <button type="button" @onclick="RegisterOrganization">إنشاء المؤسسة والدخول</button>
+                </article>
+            }
+            else
+            {
+                <article class="form-panel gateway-card">
+                    <div class="panel-title">
+                        <span>02</span>
+                        <div>
+                            <h3>دخول مؤسسة مسجلة</h3>
+                            <p>استخدم رقم الترخيص ورمز الدخول الذي أنشأته للمؤسسة.</p>
+                        </div>
+                    </div>
+
+                    <label>رقم ترخيص المؤسسة</label>
+                    <input @bind="LicenseId" @bind:event="oninput" autocomplete="off" placeholder="رقم الترخيص" />
+
+                    <label>رمز الدخول</label>
+                    <input @bind="Passcode" @bind:event="oninput" type="password" autocomplete="current-password" placeholder="رمز الدخول" />
+
+                    <button type="button" @onclick="LoginOrganization">دخول إلى لوحة المؤسسة</button>
+                </article>
+            }
+        }
+        else if (ActiveRole == "citizen")
+        {
+            <div class="auth-mode" role="tablist" aria-label="إجراء المواطن">
+                <button type="button" class="@(CitizenMode == "register" ? "active" : "")" @onclick='() => SelectCitizenMode("register")'>إنشاء مواطن</button>
+                <button type="button" class="@(CitizenMode == "login" ? "active" : "")" @onclick='() => SelectCitizenMode("login")'>دخول مواطن</button>
+            </div>
+
+            @if (CitizenMode == "register")
+            {
+                <article class="form-panel gateway-card">
+                    <div class="panel-title">
+                        <span>03</span>
+                        <div>
+                            <h3>إنشاء حساب مواطن</h3>
+                            <p>بعد الحفظ يستطيع المواطن الدخول برقم الهوية ومتابعة التوزيعات المتاحة.</p>
+                        </div>
+                    </div>
+
+                    <label>الاسم الكامل</label>
+                    <input @bind="CitizenFullName" @bind:event="oninput" autocomplete="name" placeholder="اسم المواطن" />
+
+                    <label>رقم الهوية الوطنية</label>
+                    <input @bind="CitizenNationalId" @bind:event="oninput" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
+
+                    <label>عدد أفراد الأسرة</label>
+                    <input @bind="CitizenFamilyCount" @bind:event="oninput" type="number" min="1" />
+
+                    <label>رقم الهاتف</label>
+                    <input @bind="CitizenPhone" @bind:event="oninput" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف" />
+
+                    <label>القطاع الحالي</label>
+                    <select @bind="CitizenSector">
+                        @foreach (var sector in Sectors)
+                        {
+                            <option value="@sector">@sector</option>
+                        }
+                    </select>
+
+                    <button type="button" @onclick="RegisterCitizen">إنشاء حساب المواطن والدخول</button>
+                </article>
+            }
+            else
+            {
+                <article class="form-panel gateway-card">
+                    <div class="panel-title">
+                        <span>04</span>
+                        <div>
+                            <h3>دخول المواطن</h3>
+                            <p>أدخل رقم الهوية المسجل لعرض التوزيعات في منطقتك وباقي المناطق.</p>
+                        </div>
+                    </div>
+
+                    <label>رقم الهوية الوطنية</label>
+                    <input @bind="NationalId" @bind:event="oninput" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
+
+                    <label>القطاع الحالي</label>
+                    <select @bind="CurrentSector">
+                        @foreach (var sector in Sectors)
+                        {
+                            <option value="@sector">@sector</option>
+                        }
+                    </select>
+
+                    <button type="button" @onclick="LoginCitizen">فتح ملف المواطن</button>
+                </article>
+            }
         }
         else
         {
             <article class="form-panel gateway-card">
                 <div class="panel-title">
-                    <span>و</span>
+                    <span>05</span>
                     <div>
-                        <h3>دخول المواطن</h3>
-                        <p>بيانات تجربة جاهزة: 900112233 والقطاع الرمال.</p>
+                        <h3>دخول مسؤول البرنامج</h3>
+                        <p>لوحة متابعة عامة للمؤسسات والمواطنين وخطط التوزيع المنفذة والقادمة والمتأخرة.</p>
                     </div>
                 </div>
 
-                <label>رقم الهوية الوطنية</label>
-                <input @bind="NationalId" placeholder="900112233" />
+                <label>اسم المستخدم</label>
+                <input @bind="AdminUsername" @bind:event="oninput" autocomplete="username" placeholder="admin" />
 
-                <label>القطاع الحالي</label>
-                <select @bind="CurrentSector">
-                    @foreach (var sector in Sectors)
-                    {
-                        <option value="@sector">@sector</option>
-                    }
-                </select>
+                <label>كلمة المرور</label>
+                <input @bind="AdminPassword" @bind:event="oninput" type="password" autocomplete="current-password" placeholder="admin" />
 
-                <button type="button" @onclick="LoginCitizen">فتح ملف المواطن</button>
-
-                @if (!string.IsNullOrWhiteSpace(Message))
-                {
-                    <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
-                }
+                <button type="button" @onclick="LoginAdmin">دخول مسؤول البرنامج</button>
             </article>
         }
 
-        <aside class="journey-panel">
-            <h3>ليش أحياناً الخطة لا تُعتمد؟</h3>
-            <div class="journey-step"><b>1</b><span>إذا كان نفس القطاع ونفس نوع المساعدة موجودين خلال 48 ساعة، النظام يمنع التكرار.</span></div>
-            <div class="journey-step"><b>2</b><span>الخطة لا تختفي؛ تُحفظ كتحذير في قاعدة البيانات مع رقمها.</span></div>
-            <div class="journey-step"><b>3</b><span>لتعتمد الخطة غيّر التاريخ، أو القطاع، أو نوع المساعدة.</span></div>
-            <div class="journey-step"><b>4</b><span>طلبات التسجيل وتأكيد الحضور تحفظ في نفس قاعدة البيانات.</span></div>
-        </aside>
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <div class="result-box @(IsSuccess ? "success" : "warning")" role="status">@Message</div>
+        }
     </section>
 </section>
 
 @code {
-    private string ActiveTab { get; set; } = "org";
-    private string LicenseId { get; set; } = "UNRWA-GZA-001";
-    private string Passcode { get; set; } = "123456";
-    private string NationalId { get; set; } = "900112233";
+    private string ActiveRole { get; set; } = "org";
+    private string OrganizationMode { get; set; } = "register";
+    private string CitizenMode { get; set; } = "register";
+    private string RegisterNgoName { get; set; } = "";
+    private string RegisterLicenseId { get; set; } = "";
+    private string RegisterAuthorizedPerson { get; set; } = "";
+    private string RegisterPasscode { get; set; } = "";
+    private string LicenseId { get; set; } = "";
+    private string Passcode { get; set; } = "";
+    private string CitizenFullName { get; set; } = "";
+    private string CitizenNationalId { get; set; } = "";
+    private int CitizenFamilyCount { get; set; } = 1;
+    private string CitizenPhone { get; set; } = "";
+    private string CitizenSector { get; set; } = "الرمال";
+    private string NationalId { get; set; } = "";
     private string CurrentSector { get; set; } = "الرمال";
+    private string AdminUsername { get; set; } = "";
+    private string AdminPassword { get; set; } = "";
     private string? Message { get; set; }
     private bool IsSuccess { get; set; }
     private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+
+    private void SelectRole(string role)
+    {
+        ActiveRole = role;
+        Message = null;
+    }
+
+    private void SelectOrganizationMode(string mode)
+    {
+        OrganizationMode = mode;
+        Message = null;
+    }
+
+    private void SelectCitizenMode(string mode)
+    {
+        CitizenMode = mode;
+        Message = null;
+    }
+
+    private async Task RegisterOrganization()
+    {
+        var response = await AuthService.RegisterOrganizationAsync(new OrganizationRegistrationRequest(
+            RegisterLicenseId,
+            RegisterNgoName,
+            RegisterAuthorizedPerson,
+            RegisterPasscode));
+
+        IsSuccess = response.IsAuthenticated;
+        if (!response.IsAuthenticated || response.ActorId is null)
+        {
+            Message = response.Message;
+            return;
+        }
+
+        Navigation.NavigateTo($"/org/dashboard?orgId={response.ActorId}");
+    }
 
     private async Task LoginOrganization()
     {
@@ -121,5 +260,38 @@
         }
 
         Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId.Trim())}&sector={Uri.EscapeDataString(CurrentSector)}");
+    }
+
+    private async Task RegisterCitizen()
+    {
+        var response = await AuthService.RegisterCitizenAsync(new CitizenRegistrationRequest(
+            CitizenNationalId,
+            CitizenFullName,
+            CitizenFamilyCount,
+            CitizenSector,
+            CitizenPhone));
+
+        IsSuccess = response.IsAuthenticated;
+        if (!response.IsAuthenticated)
+        {
+            Message = response.Message;
+            return;
+        }
+
+        Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(CitizenNationalId.Trim())}&sector={Uri.EscapeDataString(CitizenSector)}");
+    }
+
+    private void LoginAdmin()
+    {
+        var response = ReliefAuthService.LoginAdmin(new AdminLoginRequest(AdminUsername, AdminPassword));
+        IsSuccess = response.IsAuthenticated;
+
+        if (!response.IsAuthenticated)
+        {
+            Message = response.Message;
+            return;
+        }
+
+        Navigation.NavigateTo("/admin/dashboard");
     }
 }

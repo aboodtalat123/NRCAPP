@@ -1,89 +1,101 @@
 @inherits LayoutComponentBase
 @implements IDisposable
-@inject IJSRuntime JS
 @inject NavigationManager Navigation
 
-<div class="app-shell" dir="rtl">
-    <aside class="sidebar">
-        <div class="brand">
-            <div class="brand-mark">ن</div>
-            <div>
-                <div class="brand-title">نقطة</div>
-                <div class="brand-subtitle">مركز تنسيق الإغاثة</div>
-            </div>
-        </div>
-
-        <nav class="nav-links" aria-label="التنقل الرئيسي">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="nav-icon">⌂</span>
-                بوابة الدخول
-            </NavLink>
-            <NavLink class="nav-link" href="org/dashboard?orgId=1">
-                <span class="nav-icon">م</span>
-                مسار المؤسسة
-            </NavLink>
-            <NavLink class="nav-link" href="citizen/profile?nationalId=900112233&sector=الرمال">
-                <span class="nav-icon">و</span>
-                ملف المواطن
-            </NavLink>
-            <NavLink class="nav-link" href="aid-distribution">
-                <span class="nav-icon">✓</span>
-                الجدولة والتوزيع
-            </NavLink>
-            <NavLink class="nav-link" href="gap-detector">
-                <span class="nav-icon">!</span>
-                كشف الفجوات
-            </NavLink>
-            <NavLink class="nav-link" href="analytics">
-                <span class="nav-icon">▦</span>
-                التحليلات
-            </NavLink>
-            <NavLink class="nav-link" href="volunteers">
-                <span class="nav-icon">●</span>
-                المتطوعون
-            </NavLink>
-            <NavLink class="nav-link" href="settings">
-                <span class="nav-icon">⚙</span>
-                الإعدادات
-            </NavLink>
-        </nav>
-
-        <div class="sidebar-user">
-            <span class="user-avatar">م</span>
-            <span>منسقة ميدانية - غزة</span>
-        </div>
-    </aside>
-
-    <main class="main-panel">
-        <header class="topbar">
-            <div class="topbar-title">
-                <h1>@CurrentTitle</h1>
-                <span id="grch-clock" class="clock">جاري تحميل الوقت المحلي...</span>
-            </div>
-
-            <div class="topbar-actions">
-                <div class="status-pill" aria-live="polite">
-                    <span class="status-dot @(IsOffline ? "offline" : "online")"></span>
-                    <span>@(IsOffline ? "غير متصل - حفظ محلي للبيانات" : "متصل - تمت المزامنة")</span>
-                </div>
-                <button type="button" class="toggle-button" @onclick="ToggleOffline">
-                    وضع الاتصال
-                </button>
-            </div>
-        </header>
-
-        @if (IsOffline && IsDashboard)
-        {
-            <div class="offline-banner">
-                وضع عدم الاتصال مفعل. يتم حفظ البلاغات محلياً وسيتم رفعها عند عودة الشبكة.
-            </div>
-        }
-
-        <article class="content">
-            @Body
-        </article>
+@if (IsEntryPage)
+{
+    <main class="entry-main" dir="rtl">
+        @Body
     </main>
-</div>
+}
+else
+{
+    <div class="app-shell" dir="rtl">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-mark">ن</div>
+                <div>
+                    <div class="brand-title">نقطة</div>
+                    <div class="brand-subtitle">مركز تنسيق الإغاثة</div>
+                </div>
+            </div>
+
+            <nav class="nav-links" aria-label="التنقل الرئيسي">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="nav-icon">⌂</span>
+                    بوابة الدخول
+                </NavLink>
+                <NavLink class="nav-link" href="org/dashboard">
+                    <span class="nav-icon">م</span>
+                    مسار المؤسسة
+                </NavLink>
+                <NavLink class="nav-link" href="admin/dashboard">
+                    <span class="nav-icon">إ</span>
+                    مسؤول البرنامج
+                </NavLink>
+                <NavLink class="nav-link" href="citizen/profile">
+                    <span class="nav-icon">و</span>
+                    ملف المواطن
+                </NavLink>
+                <NavLink class="nav-link" href="aid-distribution">
+                    <span class="nav-icon">✓</span>
+                    الجدولة والتوزيع
+                </NavLink>
+                <NavLink class="nav-link" href="gap-detector">
+                    <span class="nav-icon">!</span>
+                    كشف الفجوات
+                </NavLink>
+                <NavLink class="nav-link" href="analytics">
+                    <span class="nav-icon">▦</span>
+                    التحليلات
+                </NavLink>
+                <NavLink class="nav-link" href="volunteers">
+                    <span class="nav-icon">●</span>
+                    المتطوعون
+                </NavLink>
+                <NavLink class="nav-link" href="settings">
+                    <span class="nav-icon">⚙</span>
+                    الإعدادات
+                </NavLink>
+            </nav>
+
+            <div class="sidebar-user">
+                <span class="user-avatar">م</span>
+                <span>جلسة رسمية</span>
+            </div>
+        </aside>
+
+        <main class="main-panel">
+            <header class="topbar">
+                <div class="topbar-title">
+                    <h1>@CurrentTitle</h1>
+                    <span class="clock">@ClockText</span>
+                </div>
+
+                <div class="topbar-actions">
+                    <div class="status-pill" aria-live="polite">
+                        <span class="status-dot @(IsOffline ? "offline" : "online")"></span>
+                        <span>@(IsOffline ? "غير متصل - حفظ محلي للبيانات" : "متصل - تمت المزامنة")</span>
+                    </div>
+                    <button type="button" class="toggle-button" @onclick="ToggleOffline">
+                        وضع الاتصال
+                    </button>
+                </div>
+            </header>
+
+            @if (IsOffline)
+            {
+                <div class="offline-banner">
+                    وضع عدم الاتصال مفعل. يتم حفظ البلاغات محلياً وسيتم رفعها عند عودة الشبكة.
+                </div>
+            }
+
+            <article class="content">
+                @Body
+            </article>
+        </main>
+    </div>
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     حدث خطأ غير متوقع.
@@ -94,20 +106,15 @@
 @code {
     private bool IsOffline { get; set; }
     private string CurrentTitle { get; set; } = "نقطة - بوابة الدخول";
-    private bool IsDashboard { get; set; } = true;
+    private bool IsEntryPage { get; set; } = true;
+    private string ClockText { get; set; } = FormatLocalTime();
+    private readonly CancellationTokenSource clockCancellation = new();
 
     protected override void OnInitialized()
     {
         SetCurrentPage();
         Navigation.LocationChanged += HandleLocationChanged;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            await JS.InvokeVoidAsync("grchClock.start", "grch-clock");
-        }
+        _ = RunClockAsync();
     }
 
     private void ToggleOffline()
@@ -125,11 +132,12 @@
     {
         var rawPath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
         var path = rawPath.Trim('/').ToLowerInvariant();
-        IsDashboard = string.IsNullOrWhiteSpace(path);
+        IsEntryPage = string.IsNullOrWhiteSpace(path);
         CurrentTitle = path switch
         {
             "" => "نقطة - بوابة الدخول",
             "org/dashboard" => "نقطة - مسار المؤسسة",
+            "admin/dashboard" => "نقطة - مسؤول البرنامج",
             "citizen/profile" => "نقطة - ملف المواطن",
             "aid-distribution" => "نقطة - الجدولة والتوزيع",
             "gap-detector" => "نقطة - كشف الفجوات",
@@ -140,8 +148,32 @@
         };
     }
 
+    private async Task RunClockAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(clockCancellation.Token))
+            {
+                ClockText = FormatLocalTime();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static string FormatLocalTime()
+    {
+        var culture = System.Globalization.CultureInfo.GetCultureInfo("ar");
+        return DateTime.Now.ToString("dddd، dd MMMM yyyy، hh:mm:ss tt", culture);
+    }
+
     public void Dispose()
     {
+        clockCancellation.Cancel();
+        clockCancellation.Dispose();
         Navigation.LocationChanged -= HandleLocationChanged;
     }
 }

@@ -6,8 +6,8 @@
 
 <section class="feature-page schedule-page" dir="rtl">
     <div class="feature-map">
-        <span class="feature-pin p1">UNICEF</span>
-        <span class="feature-pin p2">UNRWA</span>
+        <span class="feature-pin p1">مؤسسة</span>
+        <span class="feature-pin p2">خطة توزيع</span>
         <span class="feature-pin p3">خان يونس</span>
     </div>
 
@@ -18,8 +18,8 @@
             <p>الخطة تُفحص حسب القطاع ونوع المساعدة والتاريخ. إذا كررت نفس المساعدة في نفس القطاع خلال 48 ساعة، تُحفظ كتحذير ولا تُعتمد.</p>
             <div class="field-row"><span>التاريخ</span><b>بعد 7 أيام</b></div>
             <div class="field-row"><span>نوع المساعدة</span><b>سلة غذائية</b></div>
-            <button type="button" @onclick="SubmitDemoPlan">حفظ خطة غير متعارضة</button>
-            <button type="button" class="ghost-action" @onclick="SubmitConflictPlan">اختبار خطة متعارضة</button>
+            <button type="button" @onclick="SubmitDemoPlan">حفظ خطة تجريبية للمؤسسة الأولى</button>
+            <button type="button" class="ghost-action" @onclick="SubmitConflictPlan">فحص منع التكرار</button>
             @if (!string.IsNullOrWhiteSpace(ResultMessage))
             {
                 <div class="api-result @(Accepted ? "ok" : "warn")">@ResultMessage</div>
@@ -35,7 +35,7 @@
 
     <aside class="feature-aside">
         <h2>ليش كان يضيف وهلق لا؟</h2>
-        <p>لأن بيانات البداية فيها توزيع غذائي في الرمال خلال أقل من 48 ساعة. أي خطة جديدة بنفس النوع والقطاع داخل هذه النافذة تعتبر تكراراً، فتُحفظ كتحذير بدل اعتمادها.</p>
+        <p>إذا كانت هناك خطة بنفس القطاع ونفس نوع المساعدة خلال 48 ساعة، يحفظ النظام المحاولة كتحذير بدل اعتمادها حتى لا يتكرر التوزيع.</p>
         <ul>
             <li>غيّر التاريخ إلى بعد أكثر من 48 ساعة لاعتماد الخطة.</li>
             <li>أو غيّر القطاع إذا كانت الحاجة في مكان آخر.</li>
@@ -63,7 +63,14 @@
         var organization = await Db.Organizations
             .AsNoTracking()
             .OrderBy(x => x.Id)
-            .FirstAsync();
+            .FirstOrDefaultAsync();
+
+        if (organization is null)
+        {
+            Accepted = false;
+            ResultMessage = "لا توجد مؤسسة مسجلة بعد. ابدأ من بوابة الدخول وأنشئ مؤسسة رسمية أولاً.";
+            return;
+        }
 
         var result = await ConflictDetection.SubmitPlanAsync(new(
             AidKind.FoodBasket,

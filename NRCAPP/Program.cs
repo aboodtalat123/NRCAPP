@@ -89,12 +89,34 @@ namespace NRCAPP
                 return result.IsAuthenticated ? Results.Ok(result) : Results.Unauthorized();
             });
 
+            api.MapPost("/auth/organization/register", async (
+                OrganizationRegistrationRequest request,
+                ReliefAuthService authService) =>
+            {
+                var result = await authService.RegisterOrganizationAsync(request);
+                return result.IsAuthenticated ? Results.Created($"/org/dashboard?orgId={result.ActorId}", result) : Results.BadRequest(result);
+            });
+
             api.MapPost("/auth/individual", async (
                 IndividualLoginRequest request,
                 ReliefAuthService authService) =>
             {
                 var result = await authService.LoginIndividualAsync(request);
                 return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
+            });
+
+            api.MapPost("/auth/individual/register", async (
+                CitizenRegistrationRequest request,
+                ReliefAuthService authService) =>
+            {
+                var result = await authService.RegisterCitizenAsync(request);
+                return result.IsAuthenticated ? Results.Created($"/citizen/profile?nationalId={request.NationalId}", result) : Results.BadRequest(result);
+            });
+
+            api.MapPost("/auth/admin", (AdminLoginRequest request) =>
+            {
+                var result = ReliefAuthService.LoginAdmin(request);
+                return result.IsAuthenticated ? Results.Ok(result) : Results.Unauthorized();
             });
 
             api.MapGet("/dashboard/summary", async (ReliefDbContext db) =>
