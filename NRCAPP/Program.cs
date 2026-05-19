@@ -22,11 +22,23 @@ namespace NRCAPP
             });
 
             var sqlConnection = builder.Configuration.GetConnectionString("ReliefDb");
+            var sqliteConnection = builder.Configuration.GetConnectionString("ReliefSqlite")
+                ?? "Data Source=App_Data/relief.db";
             builder.Services.AddDbContext<ReliefDbContext>(options =>
             {
                 if (string.IsNullOrWhiteSpace(sqlConnection))
                 {
-                    options.UseInMemoryDatabase("GRCH-Local-Development");
+                    var sqliteBuilder = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(sqliteConnection);
+                    if (!string.IsNullOrWhiteSpace(sqliteBuilder.DataSource))
+                    {
+                        var directory = Path.GetDirectoryName(Path.GetFullPath(sqliteBuilder.DataSource));
+                        if (!string.IsNullOrWhiteSpace(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
+                    }
+
+                    options.UseSqlite(sqliteConnection);
                 }
                 else
                 {

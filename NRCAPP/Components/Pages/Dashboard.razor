@@ -7,10 +7,9 @@
 <section class="gateway-page" dir="rtl">
     <div class="gateway-hero">
         <span class="eyebrow">Gaza Relief Coordination Hub</span>
-        <h2>بوابة واحدة، مساران واضحان: مؤسسة تخطط ومواطن يعرف حقه القريب</h2>
+        <h2>دخول بسيط للمؤسسة والمواطن من مكان واحد</h2>
         <p>
-            اختر نوع الدخول. سيتم توجيه المؤسسة إلى لوحة التخطيط ومنع التكرار، بينما ينتقل المواطن
-            إلى ملف شخصي يعرض المؤسسات والتوزيعات القريبة من منطقته فقط.
+            المؤسسة تدخل برقم الترخيص والرمز لإضافة خطط التوزيع وفحص التكرار. المواطن يدخل برقم الهوية ليرى المساعدات القريبة من قطاعه ويسجل حضوره بسهولة.
         </p>
     </div>
 
@@ -24,10 +23,10 @@
         {
             <article class="form-panel gateway-card">
                 <div class="panel-title">
-                    <span>01</span>
+                    <span>م</span>
                     <div>
                         <h3>دخول المؤسسة</h3>
-                        <p>بعد التحقق، سيتم فتح لوحة المؤسسة الخاصة بها لإنشاء خطط توزيع ومراقبة خريطة الفجوات.</p>
+                        <p>بيانات تجربة جاهزة: UNRWA-GZA-001 والرمز 123456.</p>
                     </div>
                 </div>
 
@@ -49,10 +48,10 @@
         {
             <article class="form-panel gateway-card">
                 <div class="panel-title">
-                    <span>02</span>
+                    <span>و</span>
                     <div>
                         <h3>دخول المواطن</h3>
-                        <p>أدخل رقم الهوية والمنطقة الحالية لعرض التوزيعات القريبة والتسجيلات المعتمدة.</p>
+                        <p>بيانات تجربة جاهزة: 900112233 والقطاع الرمال.</p>
                     </div>
                 </div>
 
@@ -77,11 +76,11 @@
         }
 
         <aside class="journey-panel">
-            <h3>كيف تتحرك الرحلة؟</h3>
-            <div class="journey-step"><b>1</b><span>دخول موحد يحدد الدور</span></div>
-            <div class="journey-step"><b>2</b><span>المؤسسة تضيف خطة، والباك إند يمنع التكرار خلال 48 ساعة</span></div>
-            <div class="journey-step"><b>3</b><span>المواطن يرى المؤسسات والتوزيعات القريبة من قطاعه</span></div>
-            <div class="journey-step"><b>4</b><span>طلبات التسجيل وتأكيد الحضور تحفظ في نفس قاعدة البيانات</span></div>
+            <h3>ليش أحياناً الخطة لا تُعتمد؟</h3>
+            <div class="journey-step"><b>1</b><span>إذا كان نفس القطاع ونفس نوع المساعدة موجودين خلال 48 ساعة، النظام يمنع التكرار.</span></div>
+            <div class="journey-step"><b>2</b><span>الخطة لا تختفي؛ تُحفظ كتحذير في قاعدة البيانات مع رقمها.</span></div>
+            <div class="journey-step"><b>3</b><span>لتعتمد الخطة غيّر التاريخ، أو القطاع، أو نوع المساعدة.</span></div>
+            <div class="journey-step"><b>4</b><span>طلبات التسجيل وتأكيد الحضور تحفظ في نفس قاعدة البيانات.</span></div>
         </aside>
     </section>
 </section>
@@ -121,6 +120,6 @@
             return;
         }
 
-        Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId)}&sector={Uri.EscapeDataString(CurrentSector)}");
+        Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId.Trim())}&sector={Uri.EscapeDataString(CurrentSector)}");
     }
 }

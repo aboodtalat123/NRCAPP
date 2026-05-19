@@ -8,9 +8,10 @@ public sealed class ReliefAuthService(ReliefDbContext db)
 {
     public async Task<AuthResponse> LoginOrganizationAsync(OrganizationLoginRequest request)
     {
+        var licenseId = request.LicenseId.Trim();
         var organization = await db.Organizations
             .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.LicenseId == request.LicenseId);
+            .SingleOrDefaultAsync(x => x.LicenseId == licenseId);
 
         if (organization is null || !organization.IsVerified)
         {
@@ -33,9 +34,10 @@ public sealed class ReliefAuthService(ReliefDbContext db)
 
     public async Task<AuthResponse> LoginIndividualAsync(IndividualLoginRequest request)
     {
+        var nationalId = request.NationalId.Trim();
         var beneficiary = await db.Beneficiaries
             .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.NationalId == request.NationalId);
+            .SingleOrDefaultAsync(x => x.NationalId == nationalId);
 
         if (beneficiary is null)
         {

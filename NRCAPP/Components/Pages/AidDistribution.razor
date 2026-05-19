@@ -14,11 +14,12 @@
     <div class="feature-phone">
         <div class="phone-header">نقطة - الجدولة والمزامنة</div>
         <div class="feature-card primary">
-            <h2>تخطيط التوزيع الذكي</h2>
-            <p>خطة جديدة لمواءمة الغذاء والمياه حسب الفجوات الحالية ومنع تكرار الخدمة في نفس القطاع.</p>
-            <div class="field-row"><span>التاريخ</span><b>27 أيار 2026</b></div>
-            <div class="field-row"><span>نوع المساعدة</span><b>مياه + سلة غذائية</b></div>
-            <button type="button" @onclick="SubmitDemoPlan">التحقق من التعارض والحفظ</button>
+            <h2>تخطيط توزيع ذكي</h2>
+            <p>الخطة تُفحص حسب القطاع ونوع المساعدة والتاريخ. إذا كررت نفس المساعدة في نفس القطاع خلال 48 ساعة، تُحفظ كتحذير ولا تُعتمد.</p>
+            <div class="field-row"><span>التاريخ</span><b>بعد 7 أيام</b></div>
+            <div class="field-row"><span>نوع المساعدة</span><b>سلة غذائية</b></div>
+            <button type="button" @onclick="SubmitDemoPlan">حفظ خطة غير متعارضة</button>
+            <button type="button" class="ghost-action" @onclick="SubmitConflictPlan">اختبار خطة متعارضة</button>
             @if (!string.IsNullOrWhiteSpace(ResultMessage))
             {
                 <div class="api-result @(Accepted ? "ok" : "warn")">@ResultMessage</div>
@@ -33,12 +34,12 @@
     </div>
 
     <aside class="feature-aside">
-        <h2>كشف تعارض ذكي</h2>
-        <p>يتم فحص التوزيع جغرافياً وزمنياً قبل اعتماد الخطة، وتسجيل التحذير إذا ظهرت خطة مشابهة خلال 48 ساعة.</p>
+        <h2>ليش كان يضيف وهلق لا؟</h2>
+        <p>لأن بيانات البداية فيها توزيع غذائي في الرمال خلال أقل من 48 ساعة. أي خطة جديدة بنفس النوع والقطاع داخل هذه النافذة تعتبر تكراراً، فتُحفظ كتحذير بدل اعتمادها.</p>
         <ul>
-            <li>منع تكرار السلال الغذائية في الرمال</li>
-            <li>اقتراح تحويل الموارد إلى مناطق أقل خدمة</li>
-            <li>المزامنة جاهزة عند عودة الاتصال</li>
+            <li>غيّر التاريخ إلى بعد أكثر من 48 ساعة لاعتماد الخطة.</li>
+            <li>أو غيّر القطاع إذا كانت الحاجة في مكان آخر.</li>
+            <li>أو غيّر نوع المساعدة إذا كانت الخدمة مختلفة.</li>
         </ul>
     </aside>
 </section>
@@ -49,6 +50,16 @@
 
     private async Task SubmitDemoPlan()
     {
+        await SubmitPlan(DateTimeOffset.UtcNow.AddDays(7), "الرمال");
+    }
+
+    private async Task SubmitConflictPlan()
+    {
+        await SubmitPlan(DateTimeOffset.UtcNow.AddHours(24), "الرمال");
+    }
+
+    private async Task SubmitPlan(DateTimeOffset scheduledDate, string sector)
+    {
         var organization = await Db.Organizations
             .AsNoTracking()
             .OrderBy(x => x.Id)
@@ -56,10 +67,10 @@
 
         var result = await ConflictDetection.SubmitPlanAsync(new(
             AidKind.FoodBasket,
-            DateTimeOffset.UtcNow.AddHours(24),
+            scheduledDate,
             31.501m,
             34.466m,
-            "الرمال",
+            sector,
             250,
             organization.Id));
 

@@ -12,6 +12,8 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var isSqlServer = Database.IsSqlServer();
+
         modelBuilder.Entity<Beneficiary>(entity =>
         {
             entity.HasKey(x => x.Id);
@@ -21,7 +23,16 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             entity.Property(x => x.CurrentSector).HasMaxLength(80).IsRequired();
             entity.Property(x => x.PhoneNumber).HasMaxLength(32).IsRequired();
             entity.Property(x => x.VerificationStatus).HasConversion<string>().HasMaxLength(32);
-            entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.CreatedAt)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+
+            if (isSqlServer)
+            {
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
         });
 
         modelBuilder.Entity<DistributionRegistration>(entity =>
@@ -29,7 +40,18 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.BeneficiaryId, x.DistributionPlanId }).IsUnique();
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
-            entity.Property(x => x.RequestedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.RequestedAt)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+                entity.Property(x => x.AttendanceConfirmedAt)
+                    .HasConversion(v => v.HasValue ? v.Value.ToUnixTimeMilliseconds() : (long?)null, v => v.HasValue ? DateTimeOffset.FromUnixTimeMilliseconds(v.Value) : null);
+            }
+
+            if (isSqlServer)
+            {
+                entity.Property(x => x.RequestedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
 
             entity.HasOne(x => x.Beneficiary)
                 .WithMany(x => x.DistributionRegistrations)
@@ -51,7 +73,16 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             entity.Property(x => x.AuthorizedPerson).HasMaxLength(140).IsRequired();
             entity.Property(x => x.SecurePasscodeHash).HasMaxLength(128).IsRequired();
             entity.Property(x => x.AccessLevel).HasConversion<string>().HasMaxLength(32);
-            entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.CreatedAt)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+
+            if (isSqlServer)
+            {
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
         });
 
         modelBuilder.Entity<DistributionPlan>(entity =>
@@ -64,7 +95,18 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             entity.Property(x => x.Latitude).HasPrecision(9, 6);
             entity.Property(x => x.Longitude).HasPrecision(9, 6);
             entity.Property(x => x.ConflictMessage).HasMaxLength(500);
-            entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.ScheduledDate)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+                entity.Property(x => x.CreatedAt)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+
+            if (isSqlServer)
+            {
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
 
             entity.HasOne(x => x.Organization)
                 .WithMany(x => x.DistributionPlans)
@@ -80,7 +122,16 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             entity.Property(x => x.PayloadJson).IsRequired();
             entity.Property(x => x.SyncStatus).HasConversion<string>().HasMaxLength(40);
             entity.Property(x => x.ErrorMessage).HasMaxLength(500);
-            entity.Property(x => x.Timestamp).HasDefaultValueSql("SYSUTCDATETIME()");
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.Timestamp)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+
+            if (isSqlServer)
+            {
+                entity.Property(x => x.Timestamp).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
         });
     }
 }

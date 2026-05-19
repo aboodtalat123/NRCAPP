@@ -17,6 +17,8 @@ publish/
 *.log
 *.tmp
 *.cache
+App_Data/
+NRCAPP/App_Data/
 
 # OS files
 Thumbs.db

@@ -6,9 +6,9 @@
 <section class="role-page" dir="rtl">
     <div class="role-header citizen">
         <div>
-            <span class="eyebrow">Citizen Workflow</span>
+            <span class="eyebrow">مسار المواطن</span>
             <h2>@CitizenName</h2>
-            <p>كل ما يظهر هنا مفلتر حسب قطاعك الحالي: @EffectiveSector. لا قوائم عامة ولا مشي بلا جدوى.</p>
+            <p>كل ما يظهر هنا مفلتر حسب قطاعك الحالي: @EffectiveSector. الهدف أن ترى القريب والمفيد فقط.</p>
         </div>
         <div class="profile-chip">@NationalId</div>
     </div>
@@ -16,10 +16,10 @@
     <section class="citizen-grid">
         <article class="form-panel">
             <div class="panel-title">
-                <span>A</span>
+                <span>أ</span>
                 <div>
                     <h3>المؤسسات النشطة في منطقتك</h3>
-                    <p>اضغط طلب تسجيل ليتم إدراج اسمك في أقرب كشف مناسب داخل نفس القطاع.</p>
+                    <p>اطلب التسجيل ليتم إدراج اسمك في أقرب كشف مناسب داخل نفس القطاع.</p>
                 </div>
             </div>
 
@@ -31,7 +31,7 @@
                             <b>@agency.OrganizationName</b>
                             <span>@agency.ActivePlans خطة نشطة - أقرب مساعدة: @ToArabicAidType(agency.NextAidType)</span>
                         </div>
-                        <button type="button" @onclick="() => RequestEnrollment(agency.OrganizationId)">طلب تسجيل/إدراج اسم</button>
+                        <button type="button" @onclick="() => RequestEnrollment(agency.OrganizationId)">طلب تسجيل</button>
                     </div>
                 }
                 @if (ActiveAgencies.Count == 0)
@@ -48,10 +48,10 @@
 
         <article class="form-panel">
             <div class="panel-title">
-                <span>B</span>
+                <span>ب</span>
                 <div>
-                    <h3>أنت مسجل حالياً في</h3>
-                    <p>هذه التوزيعات تم ربطها بهويتك في قاعدة البيانات.</p>
+                    <h3>تسجيلاتك الحالية</h3>
+                    <p>هذه التوزيعات مرتبطة بهويتك في قاعدة البيانات.</p>
                 </div>
             </div>
 
@@ -73,10 +73,10 @@
 
         <article class="plans-panel citizen-schedule">
             <div class="panel-title">
-                <span>C</span>
+                <span>ج</span>
                 <div>
-                    <h3>أماكن التوزيع الحالية خلال 24 ساعة</h3>
-                    <p>أكد حضورك لتضمن الدور وتساعد المؤسسة على تقدير عدد الحضور.</p>
+                    <h3>توزيعات خلال 24 ساعة</h3>
+                    <p>أكد حضورك لحجز الدور ومساعدة المؤسسة على تقدير عدد الحضور.</p>
                 </div>
             </div>
 
@@ -141,7 +141,7 @@
     {
         var beneficiary = await Db.Beneficiaries
             .AsNoTracking()
-            .SingleOrDefaultAsync(x => x.NationalId == NationalId);
+            .SingleOrDefaultAsync(x => x.NationalId == NationalId.Trim());
 
         if (beneficiary is null)
         {
@@ -151,7 +151,7 @@
 
         BeneficiaryId = beneficiary.Id;
         CitizenName = beneficiary.FullName;
-        EffectiveSector = string.IsNullOrWhiteSpace(Sector) ? beneficiary.CurrentSector : Sector;
+        EffectiveSector = string.IsNullOrWhiteSpace(Sector) ? beneficiary.CurrentSector : Sector.Trim();
         var now = DateTimeOffset.UtcNow;
         var nextDay = now.AddHours(24);
 
