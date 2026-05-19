@@ -1,10 +1,8 @@
 @page "/"
-@inject ReliefAuthService AuthService
-@inject NavigationManager Navigation
 
 <PageTitle>نقطة - بوابة الدخول</PageTitle>
 
-<section class="entry-gateway" dir="rtl">
+<section class="entry-gateway" dir="rtl" data-entry-gateway>
     <div class="entry-brand">
         <span>ن</span>
         <div>
@@ -21,134 +19,123 @@
         </div>
 
         <div class="role-switch" role="tablist" aria-label="نوع الدخول">
-            <button type="button" class="@(ActiveRole == "org" ? "active" : "")" @onclick='() => SelectRole("org")'>مؤسسة</button>
-            <button type="button" class="@(ActiveRole == "citizen" ? "active" : "")" @onclick='() => SelectRole("citizen")'>مواطن</button>
-            <button type="button" class="@(ActiveRole == "admin" ? "active" : "")" @onclick='() => SelectRole("admin")'>مسؤول</button>
+            <button type="button" class="active" data-role-target="org" onclick="window.nrcappForms?.switchRole('org')">مؤسسة</button>
+            <button type="button" data-role-target="citizen" onclick="window.nrcappForms?.switchRole('citizen')">مواطن</button>
+            <button type="button" data-role-target="admin" onclick="window.nrcappForms?.switchRole('admin')">مسؤول</button>
         </div>
 
-        @if (ActiveRole == "org")
-        {
+        <section data-role-panel="org">
             <div class="auth-mode" role="tablist" aria-label="إجراء المؤسسة">
-                <button type="button" class="@(OrganizationMode == "register" ? "active" : "")" @onclick='() => SelectOrganizationMode("register")'>إنشاء مؤسسة</button>
-                <button type="button" class="@(OrganizationMode == "login" ? "active" : "")" @onclick='() => SelectOrganizationMode("login")'>دخول مؤسسة</button>
+                <button type="button" class="active" data-mode-target="org-register" onclick="window.nrcappForms?.switchMode('org-register')">إنشاء مؤسسة</button>
+                <button type="button" data-mode-target="org-login" onclick="window.nrcappForms?.switchMode('org-login')">دخول مؤسسة</button>
             </div>
 
-            @if (OrganizationMode == "register")
-            {
-                <article class="form-panel gateway-card">
-                    <div class="panel-title">
-                        <span>01</span>
-                        <div>
-                            <h3>إنشاء حساب مؤسسة</h3>
-                            <p>أدخل بياناتك الرسمية. بعد الحفظ ستنتقل مباشرة إلى لوحة المؤسسة لإضافة أول خطة توزيع.</p>
-                        </div>
+            <article class="form-panel gateway-card" data-mode-panel="org-register">
+                <div class="panel-title">
+                    <span>01</span>
+                    <div>
+                        <h3>إنشاء حساب مؤسسة</h3>
+                        <p>أدخل بياناتك الرسمية. بعد الحفظ ستنتقل مباشرة إلى لوحة المؤسسة لإضافة أول خطة توزيع.</p>
                     </div>
+                </div>
 
-                    <label>اسم المؤسسة</label>
-                    <input @bind="RegisterNgoName" @bind:event="oninput" autocomplete="organization" placeholder="اسم المؤسسة الرسمي" />
+                <label for="org-register-name">اسم المؤسسة</label>
+                <input id="org-register-name" autocomplete="organization" placeholder="اسم المؤسسة الرسمي" />
 
-                    <label>رقم الترخيص</label>
-                    <input @bind="RegisterLicenseId" @bind:event="oninput" autocomplete="off" placeholder="رقم الترخيص الرسمي" />
+                <label for="org-register-license">رقم الترخيص</label>
+                <input id="org-register-license" autocomplete="off" placeholder="رقم الترخيص الرسمي" />
 
-                    <label>الشخص المخول</label>
-                    <input @bind="RegisterAuthorizedPerson" @bind:event="oninput" autocomplete="name" placeholder="اسم المسؤول المخول" />
+                <label for="org-register-person">الشخص المخول</label>
+                <input id="org-register-person" autocomplete="name" placeholder="اسم المسؤول المخول" />
 
-                    <label>رمز الدخول</label>
-                    <input @bind="RegisterPasscode" @bind:event="oninput" type="password" autocomplete="new-password" placeholder="6 خانات على الأقل" />
+                <label for="org-register-passcode">رمز الدخول</label>
+                <input id="org-register-passcode" type="password" autocomplete="new-password" placeholder="6 خانات على الأقل" />
 
-                    <button type="button" @onclick="RegisterOrganization">إنشاء المؤسسة والدخول</button>
-                </article>
-            }
-            else
-            {
-                <article class="form-panel gateway-card">
-                    <div class="panel-title">
-                        <span>02</span>
-                        <div>
-                            <h3>دخول مؤسسة مسجلة</h3>
-                            <p>استخدم رقم الترخيص ورمز الدخول الذي أنشأته للمؤسسة.</p>
-                        </div>
+                <button type="button" data-action="register-org" onclick="window.nrcappForms?.handleEntryAction('register-org')">إنشاء المؤسسة والدخول</button>
+            </article>
+
+            <article class="form-panel gateway-card" data-mode-panel="org-login" hidden>
+                <div class="panel-title">
+                    <span>02</span>
+                    <div>
+                        <h3>دخول مؤسسة مسجلة</h3>
+                        <p>استخدم رقم الترخيص ورمز الدخول الذي أنشأته للمؤسسة.</p>
                     </div>
+                </div>
 
-                    <label>رقم ترخيص المؤسسة</label>
-                    <input @bind="LicenseId" @bind:event="oninput" autocomplete="off" placeholder="رقم الترخيص" />
+                <label for="org-login-license">رقم ترخيص المؤسسة</label>
+                <input id="org-login-license" autocomplete="off" placeholder="رقم الترخيص" />
 
-                    <label>رمز الدخول</label>
-                    <input @bind="Passcode" @bind:event="oninput" type="password" autocomplete="current-password" placeholder="رمز الدخول" />
+                <label for="org-login-passcode">رمز الدخول</label>
+                <input id="org-login-passcode" type="password" autocomplete="current-password" placeholder="رمز الدخول" />
 
-                    <button type="button" @onclick="LoginOrganization">دخول إلى لوحة المؤسسة</button>
-                </article>
-            }
-        }
-        else if (ActiveRole == "citizen")
-        {
+                <button type="button" data-action="login-org" onclick="window.nrcappForms?.handleEntryAction('login-org')">دخول إلى لوحة المؤسسة</button>
+            </article>
+        </section>
+
+        <section data-role-panel="citizen" hidden>
             <div class="auth-mode" role="tablist" aria-label="إجراء المواطن">
-                <button type="button" class="@(CitizenMode == "register" ? "active" : "")" @onclick='() => SelectCitizenMode("register")'>إنشاء مواطن</button>
-                <button type="button" class="@(CitizenMode == "login" ? "active" : "")" @onclick='() => SelectCitizenMode("login")'>دخول مواطن</button>
+                <button type="button" class="active" data-mode-target="citizen-register" onclick="window.nrcappForms?.switchMode('citizen-register')">إنشاء مواطن</button>
+                <button type="button" data-mode-target="citizen-login" onclick="window.nrcappForms?.switchMode('citizen-login')">دخول مواطن</button>
             </div>
 
-            @if (CitizenMode == "register")
-            {
-                <article class="form-panel gateway-card">
-                    <div class="panel-title">
-                        <span>03</span>
-                        <div>
-                            <h3>إنشاء حساب مواطن</h3>
-                            <p>بعد الحفظ يستطيع المواطن الدخول برقم الهوية ومتابعة التوزيعات المتاحة.</p>
-                        </div>
+            <article class="form-panel gateway-card" data-mode-panel="citizen-register">
+                <div class="panel-title">
+                    <span>03</span>
+                    <div>
+                        <h3>إنشاء حساب مواطن</h3>
+                        <p>بعد الحفظ يستطيع المواطن الدخول برقم الهوية ومتابعة التوزيعات المتاحة.</p>
                     </div>
+                </div>
 
-                    <label>الاسم الكامل</label>
-                    <input @bind="CitizenFullName" @bind:event="oninput" autocomplete="name" placeholder="اسم المواطن" />
+                <label for="citizen-register-name">الاسم الكامل</label>
+                <input id="citizen-register-name" autocomplete="name" placeholder="اسم المواطن" />
 
-                    <label>رقم الهوية الوطنية</label>
-                    <input @bind="CitizenNationalId" @bind:event="oninput" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
+                <label for="citizen-register-national">رقم الهوية الوطنية</label>
+                <input id="citizen-register-national" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
 
-                    <label>عدد أفراد الأسرة</label>
-                    <input @bind="CitizenFamilyCount" @bind:event="oninput" type="number" min="1" />
+                <label for="citizen-register-family">عدد أفراد الأسرة</label>
+                <input id="citizen-register-family" type="number" min="1" value="1" />
 
-                    <label>رقم الهاتف</label>
-                    <input @bind="CitizenPhone" @bind:event="oninput" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف" />
+                <label for="citizen-register-phone">رقم الهاتف</label>
+                <input id="citizen-register-phone" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف" />
 
-                    <label>القطاع الحالي</label>
-                    <select @bind="CitizenSector">
-                        @foreach (var sector in Sectors)
-                        {
-                            <option value="@sector">@sector</option>
-                        }
-                    </select>
+                <label for="citizen-register-sector">القطاع الحالي</label>
+                <select id="citizen-register-sector">
+                    @foreach (var sector in Sectors)
+                    {
+                        <option value="@sector">@sector</option>
+                    }
+                </select>
 
-                    <button type="button" @onclick="RegisterCitizen">إنشاء حساب المواطن والدخول</button>
-                </article>
-            }
-            else
-            {
-                <article class="form-panel gateway-card">
-                    <div class="panel-title">
-                        <span>04</span>
-                        <div>
-                            <h3>دخول المواطن</h3>
-                            <p>أدخل رقم الهوية المسجل لعرض التوزيعات في منطقتك وباقي المناطق.</p>
-                        </div>
+                <button type="button" data-action="register-citizen" onclick="window.nrcappForms?.handleEntryAction('register-citizen')">إنشاء حساب المواطن والدخول</button>
+            </article>
+
+            <article class="form-panel gateway-card" data-mode-panel="citizen-login" hidden>
+                <div class="panel-title">
+                    <span>04</span>
+                    <div>
+                        <h3>دخول المواطن</h3>
+                        <p>أدخل رقم الهوية المسجل لعرض التوزيعات في منطقتك وباقي المناطق.</p>
                     </div>
+                </div>
 
-                    <label>رقم الهوية الوطنية</label>
-                    <input @bind="NationalId" @bind:event="oninput" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
+                <label for="citizen-login-national">رقم الهوية الوطنية</label>
+                <input id="citizen-login-national" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
 
-                    <label>القطاع الحالي</label>
-                    <select @bind="CurrentSector">
-                        @foreach (var sector in Sectors)
-                        {
-                            <option value="@sector">@sector</option>
-                        }
-                    </select>
+                <label for="citizen-login-sector">القطاع الحالي</label>
+                <select id="citizen-login-sector">
+                    @foreach (var sector in Sectors)
+                    {
+                        <option value="@sector">@sector</option>
+                    }
+                </select>
 
-                    <button type="button" @onclick="LoginCitizen">فتح ملف المواطن</button>
-                </article>
-            }
-        }
-        else
-        {
+                <button type="button" data-action="login-citizen" onclick="window.nrcappForms?.handleEntryAction('login-citizen')">فتح ملف المواطن</button>
+            </article>
+        </section>
+
+        <section data-role-panel="admin" hidden>
             <article class="form-panel gateway-card">
                 <div class="panel-title">
                     <span>05</span>
@@ -158,140 +145,20 @@
                     </div>
                 </div>
 
-                <label>اسم المستخدم</label>
-                <input @bind="AdminUsername" @bind:event="oninput" autocomplete="username" placeholder="admin" />
+                <label for="admin-username">اسم المستخدم</label>
+                <input id="admin-username" autocomplete="username" placeholder="admin" />
 
-                <label>كلمة المرور</label>
-                <input @bind="AdminPassword" @bind:event="oninput" type="password" autocomplete="current-password" placeholder="admin" />
+                <label for="admin-password">كلمة المرور</label>
+                <input id="admin-password" type="password" autocomplete="current-password" placeholder="admin" />
 
-                <button type="button" @onclick="LoginAdmin">دخول مسؤول البرنامج</button>
+                <button type="button" data-action="login-admin" onclick="window.nrcappForms?.handleEntryAction('login-admin')">دخول مسؤول البرنامج</button>
             </article>
-        }
+        </section>
 
-        @if (!string.IsNullOrWhiteSpace(Message))
-        {
-            <div class="result-box @(IsSuccess ? "success" : "warning")" role="status">@Message</div>
-        }
+        <div id="entry-message" class="result-box warning" role="status" hidden></div>
     </section>
 </section>
 
 @code {
-    private string ActiveRole { get; set; } = "org";
-    private string OrganizationMode { get; set; } = "register";
-    private string CitizenMode { get; set; } = "register";
-    private string RegisterNgoName { get; set; } = "";
-    private string RegisterLicenseId { get; set; } = "";
-    private string RegisterAuthorizedPerson { get; set; } = "";
-    private string RegisterPasscode { get; set; } = "";
-    private string LicenseId { get; set; } = "";
-    private string Passcode { get; set; } = "";
-    private string CitizenFullName { get; set; } = "";
-    private string CitizenNationalId { get; set; } = "";
-    private int CitizenFamilyCount { get; set; } = 1;
-    private string CitizenPhone { get; set; } = "";
-    private string CitizenSector { get; set; } = "الرمال";
-    private string NationalId { get; set; } = "";
-    private string CurrentSector { get; set; } = "الرمال";
-    private string AdminUsername { get; set; } = "";
-    private string AdminPassword { get; set; } = "";
-    private string? Message { get; set; }
-    private bool IsSuccess { get; set; }
     private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
-
-    private void SelectRole(string role)
-    {
-        ActiveRole = role;
-        Message = null;
-    }
-
-    private void SelectOrganizationMode(string mode)
-    {
-        OrganizationMode = mode;
-        Message = null;
-    }
-
-    private void SelectCitizenMode(string mode)
-    {
-        CitizenMode = mode;
-        Message = null;
-    }
-
-    private async Task RegisterOrganization()
-    {
-        var response = await AuthService.RegisterOrganizationAsync(new OrganizationRegistrationRequest(
-            RegisterLicenseId,
-            RegisterNgoName,
-            RegisterAuthorizedPerson,
-            RegisterPasscode));
-
-        IsSuccess = response.IsAuthenticated;
-        if (!response.IsAuthenticated || response.ActorId is null)
-        {
-            Message = response.Message;
-            return;
-        }
-
-        Navigation.NavigateTo($"/org/dashboard?orgId={response.ActorId}");
-    }
-
-    private async Task LoginOrganization()
-    {
-        var response = await AuthService.LoginOrganizationAsync(new OrganizationLoginRequest(LicenseId, Passcode));
-        IsSuccess = response.IsAuthenticated;
-
-        if (!response.IsAuthenticated || response.ActorId is null)
-        {
-            Message = response.Message;
-            return;
-        }
-
-        Navigation.NavigateTo($"/org/dashboard?orgId={response.ActorId}");
-    }
-
-    private async Task LoginCitizen()
-    {
-        var response = await AuthService.LoginIndividualAsync(new IndividualLoginRequest(NationalId));
-        IsSuccess = response.IsAuthenticated;
-
-        if (!response.IsAuthenticated)
-        {
-            Message = response.Message;
-            return;
-        }
-
-        Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId.Trim())}&sector={Uri.EscapeDataString(CurrentSector)}");
-    }
-
-    private async Task RegisterCitizen()
-    {
-        var response = await AuthService.RegisterCitizenAsync(new CitizenRegistrationRequest(
-            CitizenNationalId,
-            CitizenFullName,
-            CitizenFamilyCount,
-            CitizenSector,
-            CitizenPhone));
-
-        IsSuccess = response.IsAuthenticated;
-        if (!response.IsAuthenticated)
-        {
-            Message = response.Message;
-            return;
-        }
-
-        Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(CitizenNationalId.Trim())}&sector={Uri.EscapeDataString(CitizenSector)}");
-    }
-
-    private void LoginAdmin()
-    {
-        var response = ReliefAuthService.LoginAdmin(new AdminLoginRequest(AdminUsername, AdminPassword));
-        IsSuccess = response.IsAuthenticated;
-
-        if (!response.IsAuthenticated)
-        {
-            Message = response.Message;
-            return;
-        }
-
-        Navigation.NavigateTo("/admin/dashboard");
-    }
 }

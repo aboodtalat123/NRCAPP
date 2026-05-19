@@ -34,7 +34,7 @@
             </div>
         </article>
 
-        <article class="form-panel" id="distribution-form">
+        <article class="form-panel" id="distribution-form" data-org-id="@OrgId">
             <div class="panel-title">
                 <span>+</span>
                 <div>
@@ -46,7 +46,7 @@
             <div class="form-columns">
                 <div>
                     <label>نوع المساعدة</label>
-                    <select @bind="SelectedAidType">
+                    <select id="plan-aid-type" @bind="SelectedAidType">
                         @foreach (var aidType in Enum.GetValues<AidKind>())
                         {
                             <option value="@aidType">@ToArabicAidType(aidType)</option>
@@ -55,7 +55,7 @@
                 </div>
                 <div>
                     <label>القطاع المستهدف</label>
-                    <select @bind="TargetSector">
+                    <select id="plan-sector" @bind="TargetSector">
                         @foreach (var sector in Sectors)
                         {
                             <option value="@sector">@sector</option>
@@ -64,23 +64,27 @@
                 </div>
                 <div>
                     <label>تاريخ ووقت التوزيع</label>
-                    <input value="@ScheduledDateText" type="datetime-local" @onchange="OnScheduledDateChanged" />
+                    <input id="plan-scheduled-date" value="@ScheduledDateText" type="datetime-local" @onchange="OnScheduledDateChanged" />
                 </div>
                 <div>
                     <label>عدد الطرود / الكمية</label>
-                    <input @bind="Quantity" @bind:event="oninput" type="number" min="1" />
+                    <input id="plan-quantity" @bind="Quantity" @bind:event="oninput" type="number" min="1" />
                 </div>
                 <div class="wide">
                     <label>السعة القصوى للمستفيدين</label>
-                    <input @bind="MaxCapacity" @bind:event="oninput" type="number" min="1" />
+                    <input id="plan-capacity" @bind="MaxCapacity" @bind:event="oninput" type="number" min="1" />
                 </div>
             </div>
 
-            <button type="button" @onclick="SubmitPlan">حفظ وفحص التكرار</button>
+            <button type="button" id="plan-submit-button" @onclick="SubmitPlan">حفظ وفحص التكرار</button>
 
             @if (!string.IsNullOrWhiteSpace(ResultMessage))
             {
-                <div class="result-box @(PlanAccepted ? "success" : "warning")">@ResultMessage</div>
+                <div id="plan-result" class="result-box @(PlanAccepted ? "success" : "warning")">@ResultMessage</div>
+            }
+            else
+            {
+                <div id="plan-result" class="result-box warning" hidden></div>
             }
         </article>
     </section>
