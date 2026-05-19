@@ -16,7 +16,7 @@ public static class ReliefDataSeeder
         string[] demoNationalIds = ["900112233", "900445566", "900778899"];
 
         var demoOrganizationIds = await db.Organizations
-            .Where(x => demoLicenseIds.Contains(x.LicenseId))
+            .Where(x => demoLicenseIds.Contains(x.LicenseId) || x.LicenseId.StartsWith("WEB-DIAG-"))
             .Select(x => x.Id)
             .ToListAsync();
 

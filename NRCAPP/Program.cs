@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.HttpOverrides;
 using NRCAPP.Api;
 using NRCAPP.Components;
 using NRCAPP.Data;
@@ -15,6 +16,13 @@ namespace NRCAPP
 
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.KnownIPNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
 
             builder.Services.ConfigureHttpJsonOptions(options =>
             {
@@ -51,6 +59,8 @@ namespace NRCAPP
             builder.Services.AddScoped<SyncQueueService>();
 
             var app = builder.Build();
+
+            app.UseForwardedHeaders();
 
             using (var scope = app.Services.CreateScope())
             {
