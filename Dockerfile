@@ -9,8 +9,7 @@ RUN dotnet publish NRCAPP/NRCAPP.csproj -c Release -o /app/publish --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
 COPY --from=build /app/publish .
-ENTRYPOINT ["dotnet", "NRCAPP.dll"]
+ENTRYPOINT dotnet NRCAPP.dll --urls http://0.0.0.0:${PORT:-8080}
