@@ -4,7 +4,7 @@ using NRCAPP.Data;
 
 namespace NRCAPP.Services;
 
-public sealed class ConflictDetectionService(ReliefDbContext db)
+public sealed class ConflictDetectionService(ReliefDbContext db, ILogger<ConflictDetectionService> logger)
 {
     private static readonly TimeSpan ConflictWindow = TimeSpan.FromHours(48);
 
@@ -71,6 +71,19 @@ public sealed class ConflictDetectionService(ReliefDbContext db)
             db.DistributionPlans.Add(blockedPlan);
             await db.SaveChangesAsync();
 
+            db.AuditLogs.Add(new AuditLog
+            {
+                ActorType = "Organization",
+                Action = "تحذير خطة توزيع",
+                EntityName = nameof(DistributionPlan),
+                EntityId = blockedPlan.Id,
+                Details = blockPlanDetail(targetSector, request, conflict)
+            });
+            await db.SaveChangesAsync();
+
+            logger.LogWarning("Plan conflict detected: Sector={Sector}, AidType={AidType}, OrgId={OrgId}",
+                targetSector, request.AidType, request.OrganizationId);
+
             return new DistributionPlanResponse(false, blockedPlan.Id, blockedPlan.Status, blockedPlan.ConflictMessage);
         }
 
@@ -90,6 +103,15 @@ public sealed class ConflictDetectionService(ReliefDbContext db)
         db.DistributionPlans.Add(plan);
         await db.SaveChangesAsync();
 
+        logger.LogInformation("Plan authorized: Id={PlanId}, Sector={Sector}, AidType={AidType}", plan.Id, targetSector, request.AidType);
+
         return new DistributionPlanResponse(true, plan.Id, plan.Status, "تم اعتماد التوزيع وحفظه في قاعدة البيانات. لا يوجد تكرار ضمن نافذة الفحص.");
+    }
+
+    private static string blockPlanDetail(string targetSector, DistributionPlanRequest request, DistributionPlan conflict)
+    {
+        return $"تم رفع تحذير على خطة قطاع {targetSector}، نوع المساعدة {request.AidType}. "
+            + $"تتعارض مع خطة رقم {conflict.Id} بواسطة {conflict.Organization?.NgoName ?? "غير معروف"} "
+            + $"بتاريخ {conflict.ScheduledDate:yyyy-MM-dd}.";
     }
 }

@@ -45,7 +45,10 @@ public sealed class Organization
 
     public AccessLevel AccessLevel { get; set; } = AccessLevel.StandardUser;
 
-    public bool IsVerified { get; set; } = true;
+    public bool IsVerified { get; set; } = false;
+
+    [MaxLength(500)]
+    public string? RejectionReason { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
@@ -144,4 +147,65 @@ public sealed class SyncQueueItem
 
     [MaxLength(500)]
     public string? ErrorMessage { get; set; }
+}
+
+public sealed class AuditLog
+{
+    public int Id { get; set; }
+
+    public int? UserId { get; set; }
+
+    [MaxLength(40)]
+    public required string ActorType { get; set; }
+
+    [MaxLength(60)]
+    public required string Action { get; set; }
+
+    [MaxLength(80)]
+    public required string EntityName { get; set; }
+
+    public int? EntityId { get; set; }
+
+    [MaxLength(1000)]
+    public string? Details { get; set; }
+
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class Volunteer
+{
+    public int Id { get; set; }
+
+    [MaxLength(160)]
+    public required string FullName { get; set; }
+
+    [MaxLength(32)]
+    public required string PhoneNumber { get; set; }
+
+    [MaxLength(80)]
+    public required string Sector { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public int? DistributionPlanId { get; set; }
+
+    public DistributionPlan? DistributionPlan { get; set; }
+}
+
+public sealed class SystemSetting
+{
+    public int Id { get; set; }
+
+    [MaxLength(80)]
+    public required string Key { get; set; }
+
+    [MaxLength(500)]
+    public required string Value { get; set; }
+
+    [MaxLength(200)]
+    public string? Description { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

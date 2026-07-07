@@ -1,0 +1,59 @@
+@page "/org/login"
+@inject NavigationManager Navigation
+
+<PageTitle>نقطة - دخول مؤسسة</PageTitle>
+
+<section class="entry-gateway" dir="rtl">
+    <div class="entry-brand">
+        <span>ن</span>
+        <div>
+            <strong>نقطة</strong>
+            <small>مركز تنسيق الإغاثة</small>
+        </div>
+    </div>
+
+    <section class="entry-panel">
+        <div class="panel-title">
+            <h1>دخول مؤسسة</h1>
+            <p>استخدم رقم الترخيص ورمز الدخول المسجلين.</p>
+        </div>
+
+        <div class="gateway-card">
+            <form method="post" action="/auth/org/form-login">
+                <label for="org-license">رقم الترخيص</label>
+                <input id="org-license" name="licenseId" placeholder="رقم الترخيص" required />
+
+                <label for="org-passcode">رمز الدخول</label>
+                <input id="org-passcode" type="password" name="passcode" placeholder="رمز الدخول" required />
+
+                @if (ShowError)
+                {
+                    <div class="result-box warning">@ErrorMessage</div>
+                }
+
+                <button type="submit">دخول إلى لوحة المؤسسة</button>
+            </form>
+
+            <p class="auth-switch">
+                ليس لديك حساب؟
+                <a href="/org/register">إنشاء مؤسسة جديدة</a>
+            </p>
+            <p class="auth-switch"><a href="/">العودة إلى بوابة الدخول</a></p>
+        </div>
+    </section>
+</section>
+
+@code {
+    private bool ShowError { get; set; }
+    private string ErrorMessage { get; set; } = "";
+
+    protected override void OnInitialized()
+    {
+        var query = new Uri(Navigation.Uri).Query;
+        if (query.Contains("error=failed"))
+        {
+            ShowError = true;
+            ErrorMessage = "رقم الترخيص أو رمز الدخول غير صحيح، أو الحساب غير معتمد.";
+        }
+    }
+}

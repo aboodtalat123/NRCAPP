@@ -2,6 +2,7 @@
 @inject AdminAuthService AdminAuth
 @inject NavigationManager Navigation
 @inject ReliefDbContext Db
+@inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>نقطة - لوحة الإدارة</PageTitle>
 
@@ -18,12 +19,11 @@
 
         <nav class="admin-nav" aria-label="تنقل لوحة الإدارة">
             <a class="active" href="/admin/dashboard">لوحة الإدارة</a>
+            <a href="/admin/dashboard#pending">بانتظار الاعتماد</a>
             <a href="/admin/dashboard#organizations">المؤسسات</a>
-            <a href="/admin/dashboard#plans">جميع الخطط</a>
-            <a href="/admin/dashboard#conflicts">التعارضات <span>@ConflictsPrevented</span></a>
-            <a href="/admin/dashboard#sync">المزامنة <span>@PendingSyncCount</span></a>
+            <a href="/admin/dashboard#audit">سجل النظام</a>
             <a href="/analytics">تقارير</a>
-            <button type="button" data-action="logout-admin" onclick="window.nrcappForms?.handleEntryAction('logout-admin')">تسجيل الخروج</button>
+            <button type="button" @onclick="Logout">تسجيل الخروج</button>
         </nav>
     </aside>
 
@@ -35,8 +35,8 @@
                 <p>متابعة المؤسسات، خطط التوزيع، التعارضات التي تم منعها، وحالة المزامنة الميدانية.</p>
             </div>
             <div class="admin-profile">
-                <span>@(AdminAuth.Current?.FullName ?? "مسؤول النظام")</span>
-                <small>@(AdminAuth.Current?.Role ?? "SuperAdmin")</small>
+                <span>@AdminName</span>
+                <small>SuperAdmin</small>
             </div>
         </header>
 
@@ -46,8 +46,8 @@
                 <strong>@ActiveOrganizationsCount</strong>
             </article>
             <article>
-                <span>خطط هذا الشهر</span>
-                <strong>@PlansThisMonthCount</strong>
+                <span>بانتظار الاعتماد</span>
+                <strong class="warning">@PendingApprovalCount</strong>
             </article>
             <article>
                 <span>تعارضات مُنعت</span>
@@ -60,11 +60,71 @@
         </section>
 
         <section class="admin-content-grid">
+            @if (PendingApprovalCount > 0)
+            {
+                <article class="admin-panel" id="pending">
+                    <div class="admin-panel-title">
+                        <div>
+                            <h2>مؤسسات بانتظار الاعتماد</h2>
+                            <p>قم باعتماد أو رض المؤسسات الجديدة المسجلة.</p>
+                        </div>
+                    </div>
+
+                    <div class="admin-table">
+                        <div class="admin-table-head">
+                            <span>المؤسسة</span>
+                            <span>رقم الترخيص</span>
+                            <span>الشخص المخول</span>
+                            <span>تاريخ التسجيل</span>
+                            <span>إجراءات</span>
+                        </div>
+                        @foreach (var org in PendingOrganizations)
+                        {
+                            <div class="admin-table-row">
+                                <span>@org.NgoName</span>
+                                <span>@org.LicenseId</span>
+                                <span>@org.AuthorizedPerson</span>
+                                <span>@org.CreatedAt.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                                <span class="actions-cell">
+                                    <button type="button" class="admin-row-button approve" @onclick="() => ApproveOrg(org.Id)">اعتماد</button>
+                                    <button type="button" class="admin-row-button reject" @onclick="() => ShowRejectDialog(org.Id, org.NgoName)">رفض</button>
+                                </span>
+                            </div>
+                            @if (org.RejectionReason is not null)
+                            {
+                                <div class="admin-table-row rejection-reason">
+                                    <span colspan="5">سبب الرفض: @org.RejectionReason</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </article>
+            }
+
+            @if (ShowRejectForm)
+            {
+                <div class="modal-overlay">
+                    <div class="modal-box">
+                        <h3>رفض المؤسسة: @RejectOrgName</h3>
+                        <label for="reject-reason">سبب الرفض:</label>
+                        <textarea id="reject-reason" @bind="RejectReason" rows="3" placeholder="أدخل سبب الرفض"></textarea>
+                        <div class="modal-actions">
+                            <button type="button" class="admin-row-button approve" @onclick="ConfirmReject">تأكيد الرفض</button>
+                            <button type="button" class="admin-row-button" @onclick="CancelReject">إلغاء</button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(RejectError))
+                        {
+                            <div class="result-box warning">@RejectError</div>
+                        }
+                    </div>
+                </div>
+            }
+
             <article class="admin-panel" id="organizations">
                 <div class="admin-panel-title">
                     <div>
                         <h2>المؤسسات</h2>
-                        <p>تفعيل أو تعليق المؤسسات المسجلة في قاعدة البيانات.</p>
+                        <p>جميع المؤسسات المسجلة في قاعدة البيانات.</p>
                     </div>
                 </div>
 
@@ -97,35 +157,31 @@
                 </div>
             </article>
 
-            <article class="admin-panel" id="plans">
+            <article class="admin-panel" id="audit">
                 <div class="admin-panel-title">
                     <div>
-                        <h2>أحدث الخطط</h2>
-                        <p>آخر خطط التوزيع عبر القطاعات والمؤسسات.</p>
+                        <h2>سجل النظام</h2>
+                        <p>آخر 50 حدث في النظام.</p>
                     </div>
                 </div>
 
-                <div class="admin-table plan-admin-table">
+                <div class="admin-table">
                     <div class="admin-table-head">
-                        <span>المؤسسة</span>
-                        <span>القطاع</span>
-                        <span>المساعدة</span>
-                        <span>الموعد</span>
-                        <span>الحالة</span>
+                        <span>التاريخ</span>
+                        <span>الإجراء</span>
+                        <span>التفاصيل</span>
                     </div>
-                    @foreach (var plan in RecentPlans)
+                    @foreach (var log in AuditLogs)
                     {
                         <div class="admin-table-row">
-                            <span>@plan.OrganizationName</span>
-                            <span>@plan.Sector</span>
-                            <span>@ToArabicAidType(plan.AidType)</span>
-                            <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
-                            <span class="pill @ToStatusClass(plan.Status)">@ToArabicStatus(plan.Status)</span>
+                            <span>@log.Timestamp.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                            <span>@log.Action</span>
+                            <span>@log.Details</span>
                         </div>
                     }
-                    @if (RecentPlans.Count == 0)
+                    @if (AuditLogs.Count == 0)
                     {
-                        <p class="empty-state">لا توجد خطط توزيع بعد.</p>
+                        <p class="empty-state">لا توجد أحداث مسجلة بعد.</p>
                     }
                 </div>
             </article>
@@ -134,15 +190,23 @@
 </section>
 
 @code {
-    private sealed record OrganizationView(int Id, string Name, string LicenseId, int PlansCount, bool IsVerified);
-    private sealed record RecentPlanView(string OrganizationName, string Sector, AidKind AidType, DateTimeOffset ScheduledDate, DistributionPlanStatus Status);
-
     private int ActiveOrganizationsCount { get; set; }
     private int PlansThisMonthCount { get; set; }
     private int ConflictsPrevented { get; set; }
     private int PendingSyncCount { get; set; }
+    private int PendingApprovalCount { get; set; }
+    private string AdminName { get; set; } = "مسؤول النظام";
     private List<OrganizationView> Organizations { get; set; } = [];
-    private List<RecentPlanView> RecentPlans { get; set; } = [];
+    private List<PendingOrganizationView> PendingOrganizations { get; set; } = [];
+    private List<Api.AuditLogItem> AuditLogs { get; set; } = [];
+    private bool ShowRejectForm { get; set; }
+    private int RejectOrgId { get; set; }
+    private string RejectOrgName { get; set; } = "";
+    private string RejectReason { get; set; } = "";
+    private string RejectError { get; set; } = "";
+
+    private sealed record OrganizationView(int Id, string Name, string LicenseId, int PlansCount, bool IsVerified);
+    private sealed record PendingOrganizationView(int Id, string LicenseId, string NgoName, string AuthorizedPerson, DateTimeOffset CreatedAt, string? RejectionReason);
 
     protected override async Task OnInitializedAsync()
     {
@@ -151,6 +215,9 @@
             Navigation.NavigateTo("/admin/login");
             return;
         }
+
+        var user = HttpContextAccessor.HttpContext?.User;
+        AdminName = user?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "مسؤول النظام";
 
         await LoadDashboardAsync();
     }
@@ -162,9 +229,10 @@
         var nextMonth = monthStart.AddMonths(1);
 
         ActiveOrganizationsCount = await Db.Organizations.AsNoTracking().CountAsync(x => x.IsVerified);
-        PlansThisMonthCount = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.ScheduledDate >= monthStart && x.ScheduledDate < nextMonth);
         ConflictsPrevented = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Warning);
         PendingSyncCount = await Db.SyncQueueItems.AsNoTracking().CountAsync(x => x.SyncStatus == SyncStatus.Pending);
+
+        PendingApprovalCount = await Db.Organizations.AsNoTracking().CountAsync(x => !x.IsVerified);
 
         Organizations = await Db.Organizations
             .AsNoTracking()
@@ -173,56 +241,89 @@
             .Select(x => new OrganizationView(x.Id, x.NgoName, x.LicenseId, x.DistributionPlans.Count, x.IsVerified))
             .ToListAsync();
 
-        RecentPlans = await Db.DistributionPlans
+        PendingOrganizations = await Db.Organizations
             .AsNoTracking()
-            .Include(x => x.Organization)
+            .Where(x => !x.IsVerified)
             .OrderByDescending(x => x.CreatedAt)
-            .Take(12)
-            .Select(x => new RecentPlanView(
-                x.Organization == null ? "غير معروف" : x.Organization.NgoName,
-                x.TargetSector,
-                x.AidType,
-                x.ScheduledDate,
-                x.Status))
+            .Select(x => new PendingOrganizationView(x.Id, x.LicenseId, x.NgoName, x.AuthorizedPerson, x.CreatedAt, x.RejectionReason))
+            .ToListAsync();
+
+        AuditLogs = await Db.AuditLogs
+            .AsNoTracking()
+            .OrderByDescending(x => x.Timestamp)
+            .Take(50)
+            .Select(x => new Api.AuditLogItem(x.Id, x.ActorType, x.Action, x.EntityName, x.EntityId, x.Details, x.Timestamp))
             .ToListAsync();
     }
 
     private async Task ToggleOrganizationAsync(int id)
     {
         var organization = await Db.Organizations.SingleOrDefaultAsync(x => x.Id == id);
-        if (organization is null)
-        {
-            return;
-        }
+        if (organization is null) return;
 
         organization.IsVerified = !organization.IsVerified;
+        if (!organization.IsVerified)
+        {
+            organization.RejectionReason = "تم التعليق بواسطة المسؤول";
+        }
         await Db.SaveChangesAsync();
+
+        Db.AuditLogs.Add(new AuditLog
+        {
+            ActorType = "Admin",
+            Action = organization.IsVerified ? "تفعيل مؤسسة" : "تعليق مؤسسة",
+            EntityName = nameof(Organization),
+            EntityId = organization.Id,
+            Details = $"{organization.NgoName} ({organization.LicenseId})"
+        });
+        await Db.SaveChangesAsync();
+
         await LoadDashboardAsync();
     }
 
-    private static string ToArabicAidType(AidKind aidType) => aidType switch
+    private async Task ApproveOrg(int orgId)
     {
-        AidKind.FoodBasket => "سلة غذائية",
-        AidKind.SafeDrinkingWater => "مياه آمنة",
-        AidKind.MedicalSupplies => "مستلزمات طبية",
-        AidKind.ShelterKits => "حقائب إيواء",
-        _ => aidType.ToString()
-    };
+        var (success, msg) = await AdminAuth.ApproveOrganizationAsync(orgId);
+        if (success) await LoadDashboardAsync();
+    }
 
-    private static string ToArabicStatus(DistributionPlanStatus status) => status switch
+    private void ShowRejectDialog(int orgId, string orgName)
     {
-        DistributionPlanStatus.Authorized => "معتمدة",
-        DistributionPlanStatus.Warning => "تعارض",
-        DistributionPlanStatus.Completed => "مكتملة",
-        DistributionPlanStatus.Cancelled => "ملغية",
-        _ => "مسودة"
-    };
+        RejectOrgId = orgId;
+        RejectOrgName = orgName;
+        RejectReason = "";
+        RejectError = "";
+        ShowRejectForm = true;
+    }
 
-    private static string ToStatusClass(DistributionPlanStatus status) => status switch
+    private void CancelReject()
     {
-        DistributionPlanStatus.Authorized => "pill-active",
-        DistributionPlanStatus.Warning => "pill-conflict",
-        DistributionPlanStatus.Completed => "pill-done",
-        _ => "pill-pending"
-    };
+        ShowRejectForm = false;
+    }
+
+    private async Task ConfirmReject()
+    {
+        if (string.IsNullOrWhiteSpace(RejectReason))
+        {
+            RejectError = "الرجاء إدخال سبب الرفض.";
+            return;
+        }
+
+        var (success, msg) = await AdminAuth.RejectOrganizationAsync(RejectOrgId, RejectReason);
+        if (success)
+        {
+            ShowRejectForm = false;
+            await LoadDashboardAsync();
+        }
+        else
+        {
+            RejectError = msg;
+        }
+    }
+
+    private async Task Logout()
+    {
+        await AdminAuth.LogoutAsync();
+        Navigation.NavigateTo("/admin/login", forceLoad: true);
+    }
 }

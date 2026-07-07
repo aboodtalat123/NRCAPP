@@ -1,4 +1,5 @@
 @page "/admin/login"
+@inject NavigationManager Navigation
 
 <PageTitle>نقطة - دخول مسؤول النظام</PageTitle>
 
@@ -19,18 +20,38 @@
             <p>هذا المسار مخصص لمراجعة المؤسسات والخطط والتعارضات وسجل المزامنة.</p>
         </div>
 
-        <label for="admin-username">اسم المستخدم</label>
-        <input id="admin-username" autocomplete="username" placeholder="admin" />
+        <form method="post" action="/auth/admin/form-login">
+            <label for="admin-username">اسم المستخدم</label>
+            <input id="admin-username" name="username" placeholder="admin" required />
 
-        <label for="admin-password">كلمة المرور</label>
-        <input id="admin-password" type="password" autocomplete="current-password" placeholder="••••••••" />
+            <label for="admin-password">كلمة المرور</label>
+            <input id="admin-password" type="password" name="password" placeholder="••••••••" required />
 
-        <div id="admin-login-message" class="result-box danger" role="status" hidden></div>
+            @if (ShowError)
+            {
+                <div class="result-box danger">@ErrorMessage</div>
+            }
 
-        <button type="button" class="admin-login-button" data-action="login-admin" onclick="window.nrcappForms?.handleEntryAction('login-admin')">دخول إلى لوحة الإدارة</button>
+            <button type="submit" class="admin-login-button">دخول إلى لوحة الإدارة</button>
+        </form>
 
         <div class="admin-warning">هذا الحساب محمي، والمحاولات الفاشلة يتم التعامل معها كحدث أمني.</div>
 
         <a class="back-link" href="/">العودة إلى بوابة الدخول</a>
     </article>
 </section>
+
+@code {
+    private bool ShowError { get; set; }
+    private string ErrorMessage { get; set; } = "";
+
+    protected override void OnInitialized()
+    {
+        var query = new Uri(Navigation.Uri).Query;
+        if (query.Contains("error=failed"))
+        {
+            ShowError = true;
+            ErrorMessage = "اسم المستخدم أو كلمة المرور غير صحيحة.";
+        }
+    }
+}

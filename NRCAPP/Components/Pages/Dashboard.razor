@@ -1,8 +1,9 @@
 @page "/"
+@layout MainLayout
 
 <PageTitle>نقطة - بوابة الدخول</PageTitle>
 
-<section class="entry-gateway" dir="rtl" data-entry-gateway>
+<section class="entry-gateway" dir="rtl">
     <div class="entry-brand">
         <span>ن</span>
         <div>
@@ -14,145 +15,39 @@
     <section class="entry-panel" aria-labelledby="entry-title">
         <div class="entry-copy">
             <span class="eyebrow">Gaza Relief Coordination Hub</span>
-            <h1 id="entry-title">بوابة رسمية تبدأ بقاعدة بيانات فارغة</h1>
+            <h1 id="entry-title">بوابة الدخول</h1>
             <p>اختر نوع الدخول. المؤسسة تضيف خطط التوزيع، المواطن ينشئ حساباً ثم يرى التوزيعات في منطقته وباقي المناطق، ومسؤول البرنامج يراقب الأرقام العامة.</p>
         </div>
 
-        <div class="role-switch" role="tablist" aria-label="نوع الدخول">
-            <button type="button" class="active" data-role-target="org" onclick="window.nrcappForms?.switchRole('org')">مؤسسة</button>
-            <button type="button" data-role-target="citizen" onclick="window.nrcappForms?.switchRole('citizen')">مواطن</button>
-            <button type="button" data-role-target="admin" onclick="window.nrcappForms?.switchRole('admin')">مسؤول</button>
+        <div class="role-cards">
+            <a class="role-card" href="/org/login">
+                <div class="role-card-icon">م</div>
+                <h2>مؤسسة</h2>
+                <p>تسجيل ودخول المؤسسات الإغاثية لإدارة خطط التوزيع</p>
+                <span class="role-card-link">دخول المؤسسة ←</span>
+            </a>
+
+            <a class="role-card" href="/citizen/login">
+                <div class="role-card-icon">و</div>
+                <h2>مواطن</h2>
+                <p>إنشاء ملف شخصي ومتابعة التوزيعات المتاحة في منطقتك</p>
+                <span class="role-card-link">دخول المواطن ←</span>
+            </a>
+
+            <a class="role-card" href="/admin/login">
+                <div class="role-card-icon">إ</div>
+                <h2>مسؤول النظام</h2>
+                <p>مراجعة المؤسسات والخطط والتعارضات وسجل النظام</p>
+                <span class="role-card-link">دخول الإدارة ←</span>
+            </a>
         </div>
 
-        <section data-role-panel="org">
-            <div class="auth-mode" role="tablist" aria-label="إجراء المؤسسة">
-                <button type="button" class="active" data-mode-target="org-register" onclick="window.nrcappForms?.switchMode('org-register')">إنشاء مؤسسة</button>
-                <button type="button" data-mode-target="org-login" onclick="window.nrcappForms?.switchMode('org-login')">دخول مؤسسة</button>
-            </div>
-
-            <article class="form-panel gateway-card" data-mode-panel="org-register">
-                <div class="panel-title">
-                    <span>01</span>
-                    <div>
-                        <h3>إنشاء حساب مؤسسة</h3>
-                        <p>أدخل بياناتك الرسمية. بعد الحفظ ستنتقل مباشرة إلى لوحة المؤسسة لإضافة أول خطة توزيع.</p>
-                    </div>
-                </div>
-
-                <label for="org-register-name">اسم المؤسسة</label>
-                <input id="org-register-name" autocomplete="organization" placeholder="اسم المؤسسة الرسمي" />
-
-                <label for="org-register-license">رقم الترخيص</label>
-                <input id="org-register-license" autocomplete="off" placeholder="رقم الترخيص الرسمي" />
-
-                <label for="org-register-person">الشخص المخول</label>
-                <input id="org-register-person" autocomplete="name" placeholder="اسم المسؤول المخول" />
-
-                <label for="org-register-passcode">رمز الدخول</label>
-                <input id="org-register-passcode" type="password" autocomplete="new-password" placeholder="6 خانات على الأقل" />
-
-                <button type="button" data-action="register-org" onclick="window.nrcappForms?.handleEntryAction('register-org')">إنشاء المؤسسة والدخول</button>
-            </article>
-
-            <article class="form-panel gateway-card" data-mode-panel="org-login" hidden>
-                <div class="panel-title">
-                    <span>02</span>
-                    <div>
-                        <h3>دخول مؤسسة مسجلة</h3>
-                        <p>استخدم رقم الترخيص ورمز الدخول الذي أنشأته للمؤسسة.</p>
-                    </div>
-                </div>
-
-                <label for="org-login-license">رقم ترخيص المؤسسة</label>
-                <input id="org-login-license" autocomplete="off" placeholder="رقم الترخيص" />
-
-                <label for="org-login-passcode">رمز الدخول</label>
-                <input id="org-login-passcode" type="password" autocomplete="current-password" placeholder="رمز الدخول" />
-
-                <button type="button" data-action="login-org" onclick="window.nrcappForms?.handleEntryAction('login-org')">دخول إلى لوحة المؤسسة</button>
-            </article>
-        </section>
-
-        <section data-role-panel="citizen" hidden>
-            <div class="auth-mode" role="tablist" aria-label="إجراء المواطن">
-                <button type="button" class="active" data-mode-target="citizen-register" onclick="window.nrcappForms?.switchMode('citizen-register')">إنشاء مواطن</button>
-                <button type="button" data-mode-target="citizen-login" onclick="window.nrcappForms?.switchMode('citizen-login')">دخول مواطن</button>
-            </div>
-
-            <article class="form-panel gateway-card" data-mode-panel="citizen-register">
-                <div class="panel-title">
-                    <span>03</span>
-                    <div>
-                        <h3>إنشاء حساب مواطن</h3>
-                        <p>بعد الحفظ يستطيع المواطن الدخول برقم الهوية ومتابعة التوزيعات المتاحة.</p>
-                    </div>
-                </div>
-
-                <label for="citizen-register-name">الاسم الكامل</label>
-                <input id="citizen-register-name" autocomplete="name" placeholder="اسم المواطن" />
-
-                <label for="citizen-register-national">رقم الهوية الوطنية</label>
-                <input id="citizen-register-national" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
-
-                <label for="citizen-register-family">عدد أفراد الأسرة</label>
-                <input id="citizen-register-family" type="number" min="1" value="1" />
-
-                <label for="citizen-register-phone">رقم الهاتف</label>
-                <input id="citizen-register-phone" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف" />
-
-                <label for="citizen-register-sector">القطاع الحالي</label>
-                <select id="citizen-register-sector">
-                    @foreach (var sector in Sectors)
-                    {
-                        <option value="@sector">@sector</option>
-                    }
-                </select>
-
-                <button type="button" data-action="register-citizen" onclick="window.nrcappForms?.handleEntryAction('register-citizen')">إنشاء حساب المواطن والدخول</button>
-            </article>
-
-            <article class="form-panel gateway-card" data-mode-panel="citizen-login" hidden>
-                <div class="panel-title">
-                    <span>04</span>
-                    <div>
-                        <h3>دخول المواطن</h3>
-                        <p>أدخل رقم الهوية المسجل لعرض التوزيعات في منطقتك وباقي المناطق.</p>
-                    </div>
-                </div>
-
-                <label for="citizen-login-national">رقم الهوية الوطنية</label>
-                <input id="citizen-login-national" inputmode="numeric" autocomplete="off" placeholder="رقم الهوية" />
-
-                <label for="citizen-login-sector">القطاع الحالي</label>
-                <select id="citizen-login-sector">
-                    @foreach (var sector in Sectors)
-                    {
-                        <option value="@sector">@sector</option>
-                    }
-                </select>
-
-                <button type="button" data-action="login-citizen" onclick="window.nrcappForms?.handleEntryAction('login-citizen')">فتح ملف المواطن</button>
-            </article>
-        </section>
-
-        <section data-role-panel="admin" hidden>
-            <article class="form-panel gateway-card">
-                <div class="panel-title">
-                    <span>05</span>
-                    <div>
-                        <h3>مسار مسؤول النظام</h3>
-                        <p>هذا المسار للإدارة العليا فقط، ويقود إلى لوحة مراجعة المؤسسات والخطط والتعارضات وسجل المزامنة.</p>
-                    </div>
-                </div>
-
-                <a class="admin-gateway-link" href="/admin/login">دخول إلى لوحة الإدارة</a>
-            </article>
-        </section>
-
-        <div id="entry-message" class="result-box warning" role="status" hidden></div>
+        <div class="register-links">
+            <p>ليس لديك حساب؟
+                <a href="/org/register">إنشاء مؤسسة جديدة</a>
+                <span class="separator">|</span>
+                <a href="/citizen/register">إنشاء حساب مواطن</a>
+            </p>
+        </div>
     </section>
 </section>
-
-@code {
-    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
-}

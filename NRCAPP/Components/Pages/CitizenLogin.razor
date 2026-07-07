@@ -1,0 +1,86 @@
+@page "/citizen/login"
+@layout MainLayout
+@inject ReliefAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>نقطة - دخول مواطن</PageTitle>
+
+<section class="entry-gateway" dir="rtl">
+    <div class="entry-brand">
+        <span>ن</span>
+        <div>
+            <strong>نقطة</strong>
+            <small>مركز تنسيق الإغاثة</small>
+        </div>
+    </div>
+
+    <section class="entry-panel">
+        <div class="panel-title">
+            <h1>دخول مواطن</h1>
+            <p>أدخل رقم الهوية المسجل لعرض التوزيعات في منطقتك وباقي المناطق.</p>
+        </div>
+
+        <div class="gateway-card">
+            <label for="citizen-login-national">رقم الهوية الوطنية</label>
+            <input id="citizen-login-national" @bind="NationalId" placeholder="رقم الهوية" />
+
+            <label for="citizen-login-sector">القطاع الحالي</label>
+            <select id="citizen-login-sector" @bind="Sector">
+                @foreach (var s in Sectors)
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+
+            <button type="button" @onclick="LoginCitizen" disabled="@IsLoading">
+                @(IsLoading ? "جاري الدخول..." : "فتح ملف المواطن")
+            </button>
+
+            @if (!string.IsNullOrEmpty(Message))
+            {
+                <div class="result-box warning">@Message</div>
+            }
+
+            <p class="auth-switch">
+                ليس لديك حساب؟
+                <a href="/citizen/register">إنشاء حساب مواطن</a>
+            </p>
+            <p class="auth-switch"><a href="/">العودة إلى بوابة الدخول</a></p>
+        </div>
+    </section>
+</section>
+
+@code {
+    private string NationalId { get; set; } = "";
+    private string Sector { get; set; } = "الرمال";
+    private string Message { get; set; } = "";
+    private bool IsLoading { get; set; }
+
+    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+
+    private async Task LoginCitizen()
+    {
+        Message = "";
+        IsLoading = true;
+
+        if (string.IsNullOrWhiteSpace(NationalId))
+        {
+            Message = "يرجى إدخال رقم الهوية.";
+            IsLoading = false;
+            return;
+        }
+
+        var result = await AuthService.LoginIndividualAsync(new Api.IndividualLoginRequest(NationalId.Trim()));
+
+        if (result.IsAuthenticated)
+        {
+            Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId.Trim())}&sector={Uri.EscapeDataString(Sector)}", forceLoad: true);
+        }
+        else
+        {
+            Message = result.Message ?? "رقم الهوية غير موجود.";
+        }
+
+        IsLoading = false;
+    }
+}

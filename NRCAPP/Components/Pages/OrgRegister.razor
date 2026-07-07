@@ -1,0 +1,109 @@
+@page "/org/register"
+@layout MainLayout
+@inject ReliefAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>نقطة - إنشاء مؤسسة</PageTitle>
+
+<section class="entry-gateway" dir="rtl">
+    <div class="entry-brand">
+        <span>ن</span>
+        <div>
+            <strong>نقطة</strong>
+            <small>مركز تنسيق الإغاثة</small>
+        </div>
+    </div>
+
+    <section class="entry-panel">
+        <div class="panel-title">
+            <h1>إنشاء حساب مؤسسة</h1>
+            <p>أدخل بياناتك الرسمية لإنشاء حساب جديد.</p>
+        </div>
+
+        <div class="gateway-card">
+            <label for="org-name">اسم المؤسسة</label>
+            <input id="org-name" @bind="NgoName" placeholder="اسم المؤسسة الرسمي" />
+
+            <label for="org-license">رقم الترخيص</label>
+            <input id="org-license" @bind="LicenseId" placeholder="رقم الترخيص الرسمي" />
+
+            <label for="org-person">الشخص المخول</label>
+            <input id="org-person" @bind="AuthorizedPerson" placeholder="اسم المسؤول المخول" />
+
+            <label for="org-passcode">رمز الدخول</label>
+            <input id="org-passcode" type="password" @bind="Passcode" placeholder="6 خانات على الأقل" />
+
+            <label for="org-confirm-passcode">تأكيد رمز الدخول</label>
+            <input id="org-confirm-passcode" type="password" @bind="ConfirmPasscode" placeholder="أعد إدخال رمز الدخول" />
+
+            <button type="button" @onclick="RegisterOrg" disabled="@IsLoading">
+                @(IsLoading ? "جاري الإرسال..." : "إنشاء حساب جديد")
+            </button>
+
+            @if (!string.IsNullOrEmpty(Message))
+            {
+                <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
+            }
+
+            <p class="auth-switch">
+                لديك حساب بالفعل؟
+                <a href="/org/login">تسجيل الدخول</a>
+            </p>
+            <p class="auth-switch"><a href="/">العودة إلى بوابة الدخول</a></p>
+        </div>
+    </section>
+</section>
+
+@code {
+    private string NgoName { get; set; } = "";
+    private string LicenseId { get; set; } = "";
+    private string AuthorizedPerson { get; set; } = "";
+    private string Passcode { get; set; } = "";
+    private string ConfirmPasscode { get; set; } = "";
+    private string Message { get; set; } = "";
+    private bool IsSuccess { get; set; }
+    private bool IsLoading { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Navigation.Uri.Contains("?orgId="))
+        {
+            Navigation.NavigateTo("/org/dashboard", forceLoad: true);
+        }
+    }
+
+    private async Task RegisterOrg()
+    {
+        Message = "";
+        IsLoading = true;
+
+        if (string.IsNullOrWhiteSpace(NgoName) || string.IsNullOrWhiteSpace(LicenseId)
+            || string.IsNullOrWhiteSpace(AuthorizedPerson) || string.IsNullOrWhiteSpace(Passcode))
+        {
+            Message = "يرجى تعبئة كل البيانات.";
+            IsLoading = false;
+            return;
+        }
+
+        if (Passcode != ConfirmPasscode)
+        {
+            Message = "رمز الدخول غير متطابق مع التأكيد.";
+            IsLoading = false;
+            return;
+        }
+
+        if (Passcode.Trim().Length < 6)
+        {
+            Message = "رمز الدخول يجب أن يكون 6 خانات على الأقل.";
+            IsLoading = false;
+            return;
+        }
+
+        var result = await AuthService.RegisterOrganizationAsync(new Api.OrganizationRegistrationRequest(
+            LicenseId.Trim(), NgoName.Trim(), AuthorizedPerson.Trim(), Passcode.Trim()));
+
+        IsSuccess = result.IsAuthenticated;
+        Message = result.Message ?? (result.IsAuthenticated ? "تم إرسال طلبكم، بانتظار اعتماد الإدارة." : "فشل إنشاء الحساب.");
+        IsLoading = false;
+    }
+}

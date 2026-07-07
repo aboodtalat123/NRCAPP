@@ -1,47 +1,151 @@
 @page "/analytics"
+@inject ReliefDbContext Db
 
 <PageTitle>نقطة - التحليلات</PageTitle>
 
 <section class="feature-page analytics-page" dir="rtl">
-    <div class="analytics-board">
-        <article>
-            <span>معدل منع التكرار</span>
-            <strong>91%</strong>
-        </article>
-        <article>
-            <span>متوسط زمن الاستجابة</span>
-            <strong>14 د</strong>
-        </article>
-        <article>
-            <span>طلبات في الانتظار</span>
-            <strong>38</strong>
-        </article>
+    <div class="role-header">
+        <div>
+            <span class="eyebrow">التحليلات والإحصائيات</span>
+            <h2>إحصائيات المنصة</h2>
+            <p>بيانات حقيقية من قاعدة البيانات.</p>
+        </div>
     </div>
 
-    <div class="feature-phone">
-        <div class="phone-header">نقطة - تحليل التوزيع</div>
-        <div class="chart-card">
-            <h2>تغطية المساعدات حسب القطاع</h2>
-            <div class="bar-chart">
-                <span style="--h:82%"></span>
-                <span style="--h:48%"></span>
-                <span style="--h:64%"></span>
-                <span style="--h:34%"></span>
-                <span style="--h:71%"></span>
+    <section class="admin-summary-grid">
+        <article>
+            <span>مؤسسات معتمدة</span>
+            <strong>@Stats.ActiveOrganizations</strong>
+        </article>
+        <article>
+            <span>مستفيدين مسجلين</span>
+            <strong>@Stats.TotalBeneficiaries</strong>
+        </article>
+        <article>
+            <span>تم التسليم</span>
+            <strong class="success">@Stats.TotalDelivered</strong>
+        </article>
+        <article>
+            <span>معتمد</span>
+            <strong>@Stats.TotalApproved</strong>
+        </article>
+    </section>
+
+    <section class="admin-content-grid">
+        <article class="admin-panel">
+            <div class="admin-panel-title">
+                <h2>الخطط حسب الحالة</h2>
             </div>
-        </div>
-        <div class="feature-card">
-            <h2>توصية ذكية</h2>
-            <p>زيادة توزيع المياه في D5 قبل الغذاء لتقليل المخاطر الصحية وتحسين أثر الجولة القادمة.</p>
-        </div>
-    </div>
+            <div class="plans-table">
+                <div class="table-head">
+                    <span>الحالة</span>
+                    <span>العدد</span>
+                </div>
+                <div class="table-row">
+                    <span>مسودة</span>
+                    <span>@Stats.PlansByStatusDraft</span>
+                </div>
+                <div class="table-row">
+                    <span>معتمدة</span>
+                    <span>@Stats.PlansByStatusAuthorized</span>
+                </div>
+                <div class="table-row">
+                    <span>تحذير</span>
+                    <span>@Stats.PlansByStatusWarning</span>
+                </div>
+                <div class="table-row">
+                    <span>مكتملة</span>
+                    <span>@Stats.PlansByStatusCompleted</span>
+                </div>
+                <div class="table-row">
+                    <span>ملغية</span>
+                    <span>@Stats.PlansByStatusCancelled</span>
+                </div>
+            </div>
+        </article>
 
-    <aside class="feature-aside">
-        <h2>مؤشرات القرار</h2>
-        <ul>
-            <li>أعلى فجوة: المياه</li>
-            <li>أسر مكررة تم منعها: 126</li>
-            <li>دقة طبقة البيانات: 87%</li>
-        </ul>
-    </aside>
+        <article class="admin-panel">
+            <div class="admin-panel-title">
+                <h2>تغطية القطاعات</h2>
+            </div>
+            <div class="plans-table">
+                <div class="table-head">
+                    <span>القطاع</span>
+                    <span>مستفيدين</span>
+                    <span>خطط نشطة</span>
+                    <span>نسبة التغطية</span>
+                </div>
+                @foreach (var sector in Stats.SectorStats)
+                {
+                    <div class="table-row">
+                        <span>@sector.Sector</span>
+                        <span>@sector.BeneficiaryCount</span>
+                        <span>@sector.ActivePlanCount</span>
+                        <span>
+                            @if (sector.BeneficiaryCount == 0)
+                            {
+                                <span class="pill pill-pending">لا توجد بيانات كافية</span>
+                            }
+                            else
+                            {
+                                <span class="pill @(sector.CoverageRatio >= 0.5 ? "pill-active" : "pill-conflict")">
+                                    @(sector.CoverageRatio.ToString("P0"))
+                                </span>
+                            }
+                        </span>
+                    </div>
+                }
+            </div>
+        </article>
+    </section>
+
+    @if (Stats.SectorStats.All(s => s.BeneficiaryCount == 0 && s.ActivePlanCount == 0))
+    {
+        <div class="empty-state">لا توجد بيانات كافية بعد لعرض الإحصائيات.</div>
+    }
 </section>
+
+@code {
+    private Api.AnalyticsResponse Stats { get; set; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0, []);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+    }
+
+    private async Task LoadStats()
+    {
+        var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
+
+        var activeOrganizations = await Db.Organizations.CountAsync(x => x.IsVerified);
+        var totalBeneficiaries = await Db.Beneficiaries.CountAsync();
+
+        var draft = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Draft);
+        var authorized = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Authorized);
+        var warning = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Warning);
+        var completed = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Completed);
+        var cancelled = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Cancelled);
+        var delivered = await Db.DistributionRegistrations.CountAsync(x => x.Status == RegistrationStatus.Delivered);
+        var approved = await Db.DistributionRegistrations.CountAsync(x => x.Status >= RegistrationStatus.Approved);
+
+        var sectorStats = new List<Api.SectorStatItem>();
+        foreach (var sector in sectors)
+        {
+            var beneficiaryCount = await Db.Beneficiaries.CountAsync(x => x.CurrentSector == sector);
+            var activePlanCount = await Db.DistributionPlans.CountAsync(x => x.TargetSector == sector && x.Status == DistributionPlanStatus.Authorized);
+            var totalCapacity = await Db.DistributionPlans
+                .Where(x => x.TargetSector == sector && x.Status == DistributionPlanStatus.Authorized)
+                .SumAsync(x => (long?)x.MaxBeneficiaryCapacity) ?? 0;
+
+            var coverageRatio = beneficiaryCount > 0
+                ? Math.Min(1.0, (double)totalCapacity / beneficiaryCount)
+                : 1.0;
+
+            sectorStats.Add(new Api.SectorStatItem(sector, beneficiaryCount, activePlanCount, coverageRatio));
+        }
+
+        Stats = new Api.AnalyticsResponse(activeOrganizations, totalBeneficiaries,
+            draft, authorized, warning, completed, cancelled,
+            (int)delivered, (int)approved, sectorStats);
+    }
+}

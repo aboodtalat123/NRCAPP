@@ -1,37 +1,115 @@
 @page "/gap-detector"
+@inject ReliefDbContext Db
 
 <PageTitle>نقطة - كشف الفجوات</PageTitle>
 
 <section class="feature-page gap-page" dir="rtl">
-    <div class="feature-map gap-map">
-        <div class="territory">
-            <span>جباليا</span>
-            <span>غزة</span>
-            <span>خان يونس</span>
-        </div>
-        <div class="cash-legend">
-            <span><i class="blue"></i>مخدومة جيداً</span>
-            <span><i class="gold"></i>مخدومة حديثاً</span>
-            <span><i class="red"></i>فجوات حرجة</span>
+    <div class="role-header">
+        <div>
+            <span class="eyebrow">كشف الفجوات</span>
+            <h2>فجوات التغطية حسب القطاع</h2>
+            <p>القطاعات التي لا توجد فيها خطط توزيع نشطة خلال آخر 7 أيام أو نسبة التغطية أقل من 50%.</p>
         </div>
     </div>
 
-    <div class="feature-phone">
-        <div class="phone-header">نقطة - خريطة فجوات نقدية</div>
-        <div class="feature-card primary">
-            <h2>فجوات نقدية شمال غزة</h2>
-            <div class="gap-stack">
-                <p><b>غزة</b><span>فجوة متوسطة</span></p>
-                <p><b>دير البلح</b><span>أولوية عالية</span></p>
-                <p><b>رفح</b><span>موقع يحتاج تحقق</span></p>
+    <section class="admin-summary-grid">
+        <article>
+            <span>قطاعات بها فجوات</span>
+            <strong class="danger">@Gaps.Count(g => g.IsGap)</strong>
+        </article>
+        <article>
+            <span>قطاعات مخدومة</span>
+            <strong class="success">@Gaps.Count(g => !g.IsGap)</strong>
+        </article>
+    </section>
+
+    <div class="plans-table">
+        <div class="table-head">
+            <span>القطاع</span>
+            <span>مستفيدين مسجلين</span>
+            <span>خطط نشطة (آخر 7 أيام)</span>
+            <span>السعة الإجمالية</span>
+            <span>الحالة</span>
+        </div>
+        @foreach (var gap in Gaps)
+        {
+            <div class="table-row">
+                <span><strong>@gap.Sector</strong></span>
+                <span>@gap.RegisteredBeneficiaries</span>
+                <span>@gap.ActivePlansInDays7</span>
+                <span>@gap.TotalCapacity</span>
+                <span>
+                    @if (gap.IsGap)
+                    {
+                        <span class="pill pill-conflict">فجوة حرجة</span>
+                    }
+                    else
+                    {
+                        <span class="pill pill-active">مخدومة</span>
+                    }
+                </span>
             </div>
-        </div>
-        <button class="wide-action" type="button">طلب كشف تعارض نقدي</button>
+        }
     </div>
 
-    <aside class="feature-aside">
-        <h2>حالة التحقق الحالية</h2>
-        <p>لا يوجد تكرار نقدي حالياً في الرمال، لكن خان يونس تحتاج إعادة توجيه للموارد خلال الجولة التالية.</p>
-        <div class="signal-bars"><span></span><span></span><span></span></div>
-    </aside>
+    @if (Gaps.Count == 0)
+    {
+        <div class="empty-state">لا توجد بيانات كافية بعد لحساب الفجوات.</div>
+    }
+
+    <div class="gap-legend">
+        <span><span class="status-dot offline"></span> فجوة حرجة - لا توجد خطط نشطة أو تغطية أقل من 50%</span>
+        <span><span class="status-dot online"></span> مخدومة - توجد خطط نشطة كافية</span>
+    </div>
+
+    <div class="sector-heatmap">
+        @foreach (var gap in Gaps)
+        {
+            <div class="sector-cell @(gap.IsGap ? "critical" : "served")">
+                <span class="sector-name">@gap.Sector</span>
+                <span class="sector-note">@(gap.IsGap ? "فجوة حرجة" : "مخدومة")</span>
+            </div>
+        }
+    </div>
 </section>
+
+@code {
+    private List<Api.GapItem> Gaps { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGaps();
+    }
+
+    private async Task LoadGaps()
+    {
+        var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
+        var now = DateTimeOffset.UtcNow;
+        var sevenDaysAgo = now.AddDays(-7);
+        var gaps = new List<Api.GapItem>();
+
+        foreach (var sector in sectors)
+        {
+            var registeredBeneficiaries = await Db.Beneficiaries
+                .CountAsync(x => x.CurrentSector == sector);
+            var activePlansIn7Days = await Db.DistributionPlans
+                .CountAsync(x => x.TargetSector == sector
+                    && x.Status == DistributionPlanStatus.Authorized
+                    && x.ScheduledDate >= sevenDaysAgo
+                    && x.ScheduledDate <= now);
+            var totalCapacity = await Db.DistributionPlans
+                .Where(x => x.TargetSector == sector
+                    && x.Status == DistributionPlanStatus.Authorized
+                    && x.ScheduledDate >= sevenDaysAgo
+                    && x.ScheduledDate <= now)
+                .SumAsync(x => (long?)x.MaxBeneficiaryCapacity) ?? 0;
+
+            var isGap = activePlansIn7Days == 0
+                || (registeredBeneficiaries > 0 && totalCapacity < registeredBeneficiaries * 0.5);
+
+            gaps.Add(new Api.GapItem(sector, registeredBeneficiaries, activePlansIn7Days, (int)totalCapacity, isGap));
+        }
+
+        Gaps = gaps;
+    }
+}

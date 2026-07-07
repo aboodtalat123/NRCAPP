@@ -9,8 +9,12 @@ public static class ReliefDataSeeder
         await db.Database.EnsureCreatedAsync();
         await EnsureAdminSchemaAsync(db);
         await EnsureDeliverySchemaAsync(db);
+        await EnsureOrgRejectionReasonSchemaAsync(db);
+        await EnsureAuditLogSchemaAsync(db);
+        await EnsureVolunteerSchemaAsync(db);
+        await EnsureSystemSettingSchemaAsync(db);
         await SeedDefaultAdminAsync(db);
-        await RemoveLegacyDemoDataAsync(db);
+        await SeedDefaultSettingsAsync(db);
     }
 
     private static async Task EnsureDeliverySchemaAsync(ReliefDbContext db)
@@ -34,6 +38,142 @@ public static class ReliefDataSeeder
                 IF COL_LENGTH('DistributionRegistrations', 'DeliveredAt') IS NULL
                 BEGIN
                     ALTER TABLE [DistributionRegistrations] ADD [DeliveredAt] datetimeoffset NULL;
+                END
+                """);
+        }
+    }
+
+    private static async Task EnsureOrgRejectionReasonSchemaAsync(ReliefDbContext db)
+    {
+        if (db.Database.IsSqlite())
+        {
+            var colExists = await db.Database
+                .SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM pragma_table_info('Organizations') WHERE name = 'RejectionReason'")
+                .SingleAsync();
+
+            if (colExists == 0)
+            {
+                await db.Database.ExecuteSqlRawAsync("""
+                    ALTER TABLE "Organizations" ADD COLUMN "RejectionReason" TEXT NULL;
+                    """);
+            }
+        }
+        else if (db.Database.IsSqlServer())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                IF COL_LENGTH('Organizations', 'RejectionReason') IS NULL
+                BEGIN
+                    ALTER TABLE [Organizations] ADD [RejectionReason] nvarchar(500) NULL;
+                END
+                """);
+        }
+    }
+
+    private static async Task EnsureAuditLogSchemaAsync(ReliefDbContext db)
+    {
+        if (db.Database.IsSqlite())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "AuditLogs" (
+                    "Id" INTEGER NOT NULL CONSTRAINT "PK_AuditLogs" PRIMARY KEY AUTOINCREMENT,
+                    "UserId" INTEGER NULL,
+                    "ActorType" TEXT NOT NULL,
+                    "Action" TEXT NOT NULL,
+                    "EntityName" TEXT NOT NULL,
+                    "EntityId" INTEGER NULL,
+                    "Details" TEXT NULL,
+                    "Timestamp" INTEGER NOT NULL
+                );
+                """);
+        }
+        else if (db.Database.IsSqlServer())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                IF OBJECT_ID(N'[AuditLogs]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [AuditLogs] (
+                        [Id] int NOT NULL IDENTITY,
+                        [UserId] int NULL,
+                        [ActorType] nvarchar(40) NOT NULL,
+                        [Action] nvarchar(60) NOT NULL,
+                        [EntityName] nvarchar(80) NOT NULL,
+                        [EntityId] int NULL,
+                        [Details] nvarchar(1000) NULL,
+                        [Timestamp] datetimeoffset NOT NULL DEFAULT SYSUTCDATETIME(),
+                        CONSTRAINT [PK_AuditLogs] PRIMARY KEY ([Id])
+                    );
+                END
+                """);
+        }
+    }
+
+    private static async Task EnsureVolunteerSchemaAsync(ReliefDbContext db)
+    {
+        if (db.Database.IsSqlite())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "Volunteers" (
+                    "Id" INTEGER NOT NULL CONSTRAINT "PK_Volunteers" PRIMARY KEY AUTOINCREMENT,
+                    "FullName" TEXT NOT NULL,
+                    "PhoneNumber" TEXT NOT NULL,
+                    "Sector" TEXT NOT NULL,
+                    "IsActive" INTEGER NOT NULL,
+                    "JoinedAt" INTEGER NOT NULL,
+                    "DistributionPlanId" INTEGER NULL,
+                    CONSTRAINT "FK_Volunteers_DistributionPlans_DistributionPlanId" FOREIGN KEY ("DistributionPlanId") REFERENCES "DistributionPlans" ("Id") ON DELETE SET NULL
+                );
+                """);
+        }
+        else if (db.Database.IsSqlServer())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                IF OBJECT_ID(N'[Volunteers]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [Volunteers] (
+                        [Id] int NOT NULL IDENTITY,
+                        [FullName] nvarchar(160) NOT NULL,
+                        [PhoneNumber] nvarchar(32) NOT NULL,
+                        [Sector] nvarchar(80) NOT NULL,
+                        [IsActive] bit NOT NULL,
+                        [JoinedAt] datetimeoffset NOT NULL DEFAULT SYSUTCDATETIME(),
+                        [DistributionPlanId] int NULL,
+                        CONSTRAINT [PK_Volunteers] PRIMARY KEY ([Id]),
+                        CONSTRAINT [FK_Volunteers_DistributionPlans_DistributionPlanId] FOREIGN KEY ([DistributionPlanId]) REFERENCES [DistributionPlans] ([Id]) ON DELETE SET NULL
+                    );
+                END
+                """);
+        }
+    }
+
+    private static async Task EnsureSystemSettingSchemaAsync(ReliefDbContext db)
+    {
+        if (db.Database.IsSqlite())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "SystemSettings" (
+                    "Id" INTEGER NOT NULL CONSTRAINT "PK_SystemSettings" PRIMARY KEY AUTOINCREMENT,
+                    "Key" TEXT NOT NULL,
+                    "Value" TEXT NOT NULL,
+                    "Description" TEXT NULL,
+                    "UpdatedAt" INTEGER NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_SystemSettings_Key" ON "SystemSettings" ("Key");
+                """);
+        }
+        else if (db.Database.IsSqlServer())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                IF OBJECT_ID(N'[SystemSettings]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [SystemSettings] (
+                        [Id] int NOT NULL IDENTITY,
+                        [Key] nvarchar(80) NOT NULL,
+                        [Value] nvarchar(500) NOT NULL,
+                        [Description] nvarchar(200) NULL,
+                        [UpdatedAt] datetimeoffset NOT NULL DEFAULT SYSUTCDATETIME(),
+                        CONSTRAINT [PK_SystemSettings] PRIMARY KEY ([Id])
+                    );
+                    CREATE UNIQUE INDEX [IX_SystemSettings_Key] ON [SystemSettings] ([Key]);
                 END
                 """);
         }
@@ -101,37 +241,20 @@ public static class ReliefDataSeeder
         await db.SaveChangesAsync();
     }
 
-    private static async Task RemoveLegacyDemoDataAsync(ReliefDbContext db)
+    private static async Task SeedDefaultSettingsAsync(ReliefDbContext db)
     {
-        string[] demoLicenseIds = ["UNRWA-GZA-001", "UNICEF-GZA-002", "WFP-GZA-003"];
-        string[] demoNationalIds = ["900112233", "900445566", "900778899"];
-
-        var demoOrganizationIds = await db.Organizations
-            .Where(x => demoLicenseIds.Contains(x.LicenseId) || x.LicenseId.StartsWith("WEB-DIAG-"))
-            .Select(x => x.Id)
-            .ToListAsync();
-
-        var demoBeneficiaryIds = await db.Beneficiaries
-            .Where(x => demoNationalIds.Contains(x.NationalId))
-            .Select(x => x.Id)
-            .ToListAsync();
-
-        if (demoOrganizationIds.Count == 0 && demoBeneficiaryIds.Count == 0)
+        if (await db.SystemSettings.AnyAsync())
         {
             return;
         }
 
-        var demoPlanIds = await db.DistributionPlans
-            .Where(x => demoOrganizationIds.Contains(x.OrganizationId))
-            .Select(x => x.Id)
-            .ToListAsync();
-
-        db.DistributionRegistrations.RemoveRange(db.DistributionRegistrations
-            .Where(x => demoBeneficiaryIds.Contains(x.BeneficiaryId) || demoPlanIds.Contains(x.DistributionPlanId)));
-
-        db.DistributionPlans.RemoveRange(db.DistributionPlans.Where(x => demoPlanIds.Contains(x.Id)));
-        db.Beneficiaries.RemoveRange(db.Beneficiaries.Where(x => demoBeneficiaryIds.Contains(x.Id)));
-        db.Organizations.RemoveRange(db.Organizations.Where(x => demoOrganizationIds.Contains(x.Id)));
+        var now = DateTimeOffset.UtcNow;
+        db.SystemSettings.AddRange(
+            new SystemSetting { Key = "registration_enabled", Value = "true", Description = "تفعيل/تعطيل التسجيل الذاتي للمؤسسات", UpdatedAt = now },
+            new SystemSetting { Key = "conflict_window_hours", Value = "48", Description = "مدة صلاحية نافذة كشف التعارض بالساعات", UpdatedAt = now },
+            new SystemSetting { Key = "offline_mode_enabled", Value = "false", Description = "تفعيل وضع عدم الاتصال", UpdatedAt = now },
+            new SystemSetting { Key = "critical_gap_threshold", Value = "0.5", Description = "نسبة الفجوة الحرجة (أقل من 50% تغطية)", UpdatedAt = now }
+        );
 
         await db.SaveChangesAsync();
     }

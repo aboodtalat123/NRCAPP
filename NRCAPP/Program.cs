@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
 using NRCAPP.Api;
 using NRCAPP.Components;
 using NRCAPP.Data;
 using NRCAPP.Services;
 using System.Text.Json.Serialization;
+using FluentValidation;
+using Serilog;
 
 namespace NRCAPP
 {
@@ -14,6 +17,17 @@ namespace NRCAPP
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+            builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .WriteTo.Console()
+                .CreateLogger();
+            builder.Host.UseSerilog();
+
+            builder.Services.AddValidatorsFromAssemblyContaining<OrganizationRegistrationValidator>();
 
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
@@ -94,6 +108,8 @@ namespace NRCAPP
             app.UseAuthorization();
             app.UseAntiforgery();
 
+            MapFormAuthEndpoints(app);
+
             MapReliefApi(app);
 
             app.MapStaticAssets();
@@ -107,20 +123,41 @@ namespace NRCAPP
         {
             var api = app.MapGroup("/api").WithTags("GRCH");
 
-            api.MapPost("/auth/organization", async (
-                OrganizationLoginRequest request,
-                ReliefAuthService authService) =>
-            {
-                var result = await authService.LoginOrganizationAsync(request);
-                return result.IsAuthenticated ? Results.Ok(result) : Results.Unauthorized();
-            });
-
+            // === Auth ===
             api.MapPost("/auth/organization/register", async (
                 OrganizationRegistrationRequest request,
-                ReliefAuthService authService) =>
+                ReliefAuthService authService,
+                IValidator<OrganizationRegistrationRequest> validator) =>
             {
+                var val = await validator.ValidateAsync(request);
+                if (!val.IsValid)
+                    return Results.BadRequest(new AuthResponse(false, "Organization", null, "", "", val.Errors[0].ErrorMessage));
                 var result = await authService.RegisterOrganizationAsync(request);
-                return result.IsAuthenticated ? Results.Created($"/org/dashboard?orgId={result.ActorId}", result) : Results.BadRequest(result);
+                return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
+            });
+
+            api.MapPost("/auth/organization", async (
+                OrganizationLoginRequest request,
+                ReliefAuthService authService,
+                IValidator<OrganizationLoginRequest> validator) =>
+            {
+                var val = await validator.ValidateAsync(request);
+                if (!val.IsValid)
+                    return Results.BadRequest(new AuthResponse(false, "Organization", null, "", "", val.Errors[0].ErrorMessage));
+                var result = await authService.LoginOrganizationAsync(request);
+                return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
+            });
+
+            api.MapPost("/auth/individual/register", async (
+                CitizenRegistrationRequest request,
+                ReliefAuthService authService,
+                IValidator<CitizenRegistrationRequest> validator) =>
+            {
+                var val = await validator.ValidateAsync(request);
+                if (!val.IsValid)
+                    return Results.BadRequest(new AuthResponse(false, "Individual", null, "", "", val.Errors[0].ErrorMessage));
+                var result = await authService.RegisterCitizenAsync(request);
+                return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
             });
 
             api.MapPost("/auth/individual", async (
@@ -131,24 +168,12 @@ namespace NRCAPP
                 return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
             });
 
-            api.MapPost("/auth/individual/register", async (
-                CitizenRegistrationRequest request,
-                ReliefAuthService authService) =>
-            {
-                var result = await authService.RegisterCitizenAsync(request);
-                return result.IsAuthenticated ? Results.Created($"/citizen/profile?nationalId={request.NationalId}", result) : Results.BadRequest(result);
-            });
-
             api.MapPost("/auth/admin", async (
                 AdminLoginRequest request,
                 AdminAuthService adminAuth) =>
             {
                 var ok = await adminAuth.LoginAsync(request.Username, request.Password);
-                var admin = adminAuth.Current;
-                var result = ok
-                    ? new AuthResponse(true, "Admin", admin?.Id, admin?.FullName ?? "مسؤول النظام", admin?.Role ?? "Admin", "تم دخول مسؤول النظام.")
-                    : new AuthResponse(false, "Admin", null, "", "", "اسم المستخدم أو كلمة المرور غير صحيحة.");
-                return result.IsAuthenticated ? Results.Ok(result) : Results.Unauthorized();
+                return ok ? Results.Ok(new { message = "تم الدخول." }) : Results.Unauthorized();
             });
 
             api.MapPost("/auth/admin/logout", async (AdminAuthService adminAuth) =>
@@ -157,6 +182,51 @@ namespace NRCAPP
                 return Results.Ok(new { message = "تم تسجيل الخروج." });
             });
 
+            api.MapPost("/auth/logout", async (ReliefAuthService authService) =>
+            {
+                await authService.SignOutAsync();
+                return Results.Ok(new { message = "تم تسجيل الخروج." });
+            });
+
+            // === Admin: Organization Approval ===
+            api.MapGet("/admin/pending-organizations", async (AdminAuthService adminAuth) =>
+            {
+                if (!adminAuth.IsLoggedIn()) return Results.Unauthorized();
+                var pending = await adminAuth.GetPendingOrganizationsAsync();
+                return Results.Ok(pending);
+            });
+
+            api.MapPost("/admin/approve-organization", async (
+                OrgApprovalRequest request,
+                AdminAuthService adminAuth) =>
+            {
+                if (!adminAuth.IsLoggedIn()) return Results.Unauthorized();
+
+                if (request.Approve)
+                {
+                    var (success, msg) = await adminAuth.ApproveOrganizationAsync(request.OrganizationId);
+                    return success ? Results.Ok(new { message = msg }) : Results.BadRequest(new { message = msg });
+                }
+                else
+                {
+                    var (success, msg) = await adminAuth.RejectOrganizationAsync(request.OrganizationId, request.RejectionReason ?? "");
+                    return success ? Results.Ok(new { message = msg }) : Results.BadRequest(new { message = msg });
+                }
+            });
+
+            // === Admin: Audit Log ===
+            api.MapGet("/admin/audit-log", async (ReliefDbContext db, int? limit) =>
+            {
+                var logs = await db.AuditLogs
+                    .AsNoTracking()
+                    .OrderByDescending(x => x.Timestamp)
+                    .Take(limit ?? 100)
+                    .Select(x => new AuditLogItem(x.Id, x.ActorType, x.Action, x.EntityName, x.EntityId, x.Details, x.Timestamp))
+                    .ToListAsync();
+                return Results.Ok(logs);
+            });
+
+            // === Dashboard ===
             api.MapGet("/dashboard/summary", async (ReliefDbContext db) =>
             {
                 var plans = await db.DistributionPlans
@@ -186,35 +256,201 @@ namespace NRCAPP
                 return Results.Ok(response);
             });
 
-            api.MapGet("/distribution-plans", async (ReliefDbContext db) =>
+            // === Distribution Plans ===
+            api.MapGet("/distribution-plans", async (ReliefDbContext db, string? sector, string? status) =>
             {
-                var plans = await db.DistributionPlans
+                var query = db.DistributionPlans
                     .AsNoTracking()
                     .Include(x => x.Organization)
-                    .OrderBy(x => x.ScheduledDate)
+                    .AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(sector))
+                    query = query.Where(x => x.TargetSector == sector);
+                if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<DistributionPlanStatus>(status, out var statusFilter))
+                    query = query.Where(x => x.Status == statusFilter);
+
+                var plans = await query
+                    .OrderByDescending(x => x.ScheduledDate)
                     .Select(x => new DistributionPlanMapItem(
-                        x.Id,
-                        x.AidType,
-                        x.TargetSector,
-                        x.Latitude,
-                        x.Longitude,
-                        x.Quantity,
-                        x.Status,
+                        x.Id, x.AidType, x.TargetSector, x.Latitude, x.Longitude,
+                        x.Quantity, x.Status,
                         x.Organization == null ? "غير معروف" : x.Organization.NgoName,
                         x.ScheduledDate))
                     .ToListAsync();
-
                 return Results.Ok(plans);
             });
 
             api.MapPost("/distribution-plans", async (
                 DistributionPlanRequest request,
-                ConflictDetectionService conflictDetection) =>
+                ConflictDetectionService conflictDetection,
+                IValidator<DistributionPlanRequest> validator) =>
             {
+                var val = await validator.ValidateAsync(request);
+                if (!val.IsValid)
+                    return Results.BadRequest(new DistributionPlanResponse(false, null, DistributionPlanStatus.Warning, val.Errors[0].ErrorMessage));
                 var result = await conflictDetection.SubmitPlanAsync(request);
                 return result.Accepted ? Results.Created($"/api/distribution-plans/{result.PlanId}", result) : Results.Conflict(result);
             });
 
+            // === Analytics ===
+            api.MapGet("/analytics", async (ReliefDbContext db) =>
+            {
+                var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
+
+                var activeOrganizations = await db.Organizations.CountAsync(x => x.IsVerified);
+                var totalBeneficiaries = await db.Beneficiaries.CountAsync();
+
+                var plansByStatus = new Dictionary<DistributionPlanStatus, int>();
+                foreach (var status in Enum.GetValues<DistributionPlanStatus>())
+                {
+                    plansByStatus[status] = await db.DistributionPlans.CountAsync(x => x.Status == status);
+                }
+
+                var totalDelivered = await db.DistributionRegistrations
+                    .CountAsync(x => x.Status == RegistrationStatus.Delivered);
+                var totalApproved = await db.DistributionRegistrations
+                    .CountAsync(x => x.Status >= RegistrationStatus.Approved);
+
+                var sectorStats = new List<SectorStatItem>();
+                foreach (var sector in sectors)
+                {
+                    var beneficiaryCount = await db.Beneficiaries
+                        .CountAsync(x => x.CurrentSector == sector);
+                    var activePlanCount = await db.DistributionPlans
+                        .CountAsync(x => x.TargetSector == sector && x.Status == DistributionPlanStatus.Authorized);
+                    var totalCapacity = await db.DistributionPlans
+                        .Where(x => x.TargetSector == sector && x.Status == DistributionPlanStatus.Authorized)
+                        .SumAsync(x => (long?)x.MaxBeneficiaryCapacity) ?? 0;
+
+                    var coverageRatio = beneficiaryCount > 0
+                        ? Math.Min(1.0, (double)totalCapacity / beneficiaryCount)
+                        : 1.0;
+
+                    sectorStats.Add(new SectorStatItem(sector, beneficiaryCount, activePlanCount, coverageRatio));
+                }
+
+                return Results.Ok(new AnalyticsResponse(
+                    activeOrganizations, totalBeneficiaries,
+                    plansByStatus.GetValueOrDefault(DistributionPlanStatus.Draft),
+                    plansByStatus.GetValueOrDefault(DistributionPlanStatus.Authorized),
+                    plansByStatus.GetValueOrDefault(DistributionPlanStatus.Warning),
+                    plansByStatus.GetValueOrDefault(DistributionPlanStatus.Completed),
+                    plansByStatus.GetValueOrDefault(DistributionPlanStatus.Cancelled),
+                    (int)totalDelivered, (int)totalApproved,
+                    sectorStats));
+            });
+
+            // === Gap Detection ===
+            api.MapGet("/gaps", async (ReliefDbContext db) =>
+            {
+                var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
+                var now = DateTimeOffset.UtcNow;
+                var sevenDaysAgo = now.AddDays(-7);
+                var gaps = new List<GapItem>();
+
+                foreach (var sector in sectors)
+                {
+                    var registeredBeneficiaries = await db.Beneficiaries
+                        .CountAsync(x => x.CurrentSector == sector);
+                    var activePlansIn7Days = await db.DistributionPlans
+                        .CountAsync(x => x.TargetSector == sector
+                            && x.Status == DistributionPlanStatus.Authorized
+                            && x.ScheduledDate >= sevenDaysAgo
+                            && x.ScheduledDate <= now);
+                    var totalCapacity = await db.DistributionPlans
+                        .Where(x => x.TargetSector == sector
+                            && x.Status == DistributionPlanStatus.Authorized
+                            && x.ScheduledDate >= sevenDaysAgo
+                            && x.ScheduledDate <= now)
+                        .SumAsync(x => (long?)x.MaxBeneficiaryCapacity) ?? 0;
+
+                    var isGap = activePlansIn7Days == 0
+                        || (registeredBeneficiaries > 0 && totalCapacity < registeredBeneficiaries * 0.5);
+
+                    gaps.Add(new GapItem(sector, registeredBeneficiaries, activePlansIn7Days, (int)totalCapacity, isGap));
+                }
+
+                return Results.Ok(gaps);
+            });
+
+            // === Volunteers ===
+            api.MapGet("/volunteers", async (ReliefDbContext db) =>
+            {
+                var list = await db.Volunteers
+                    .AsNoTracking()
+                    .OrderByDescending(x => x.JoinedAt)
+                    .Select(x => new VolunteerItem(x.Id, x.FullName, x.PhoneNumber, x.Sector, x.IsActive, x.JoinedAt, x.DistributionPlanId))
+                    .ToListAsync();
+                return Results.Ok(list);
+            });
+
+            api.MapPost("/volunteers", async (VolunteerRequest request, ReliefDbContext db) =>
+            {
+                if (string.IsNullOrWhiteSpace(request.FullName) || string.IsNullOrWhiteSpace(request.PhoneNumber))
+                {
+                    return Results.BadRequest(new { message = "يرجى تعبئة اسم المتطوع ورقم الهاتف." });
+                }
+
+                var volunteer = new Volunteer
+                {
+                    FullName = request.FullName.Trim(),
+                    PhoneNumber = request.PhoneNumber.Trim(),
+                    Sector = request.Sector.Trim()
+                };
+                db.Volunteers.Add(volunteer);
+                await db.SaveChangesAsync();
+                return Results.Created($"/api/volunteers/{volunteer.Id}", new { message = "تم إضافة المتطوع." });
+            });
+
+            api.MapPost("/volunteers/confirm-delivery", async (
+                int registrationId,
+                int volunteerId,
+                ReliefDbContext db) =>
+            {
+                var registration = await db.DistributionRegistrations
+                    .SingleOrDefaultAsync(x => x.Id == registrationId);
+                if (registration is null) return Results.NotFound();
+
+                registration.Status = RegistrationStatus.Delivered;
+                registration.DeliveredAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+
+                var volunteer = await db.Volunteers.FindAsync(volunteerId);
+                if (volunteer is not null)
+                {
+                    volunteer.DistributionPlanId = registration.DistributionPlanId;
+                    await db.SaveChangesAsync();
+                }
+
+                return Results.Ok(new { message = "تم تأكيد التسليم." });
+            });
+
+            // === Settings ===
+            api.MapGet("/settings", async (ReliefDbContext db) =>
+            {
+                var settings = await db.SystemSettings
+                    .AsNoTracking()
+                    .OrderBy(x => x.Key)
+                    .Select(x => new SystemSettingItem(x.Id, x.Key, x.Value, x.Description))
+                    .ToListAsync();
+                return Results.Ok(settings);
+            });
+
+            api.MapPost("/settings", async (UpdateSettingRequest request, ReliefDbContext db) =>
+            {
+                var setting = await db.SystemSettings.FirstOrDefaultAsync(x => x.Key == request.Key);
+                if (setting is null)
+                {
+                    return Results.NotFound(new { message = "الإعداد غير موجود." });
+                }
+
+                setting.Value = request.Value.Trim();
+                setting.UpdatedAt = DateTimeOffset.UtcNow;
+                await db.SaveChangesAsync();
+                return Results.Ok(new { message = "تم تحديث الإعداد." });
+            });
+
+            // === Sync ===
             api.MapPost("/sync/queue", async (
                 SyncPacketRequest request,
                 SyncQueueService syncQueue) =>
@@ -229,6 +465,7 @@ namespace NRCAPP
                 return Results.Ok(pending);
             });
 
+            // === Citizens ===
             api.MapGet("/citizens/{nationalId}/profile", async (
                 string nationalId,
                 string? sector,
@@ -349,6 +586,52 @@ namespace NRCAPP
                 await db.SaveChangesAsync();
 
                 return Results.Ok(new { message = "تم تأكيد الحضور وحجز الدور." });
+            });
+        }
+
+        private static void MapFormAuthEndpoints(WebApplication app)
+        {
+            app.MapPost("/auth/admin/form-login", async (
+                HttpContext context,
+                AdminAuthService adminAuth) =>
+            {
+                var form = await context.Request.ReadFormAsync();
+                var username = form["username"].FirstOrDefault() ?? "";
+                var password = form["password"].FirstOrDefault() ?? "";
+                if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+                {
+                    return Results.Redirect("/admin/login?error=failed");
+                }
+                var ok = await adminAuth.LoginAsync(username, password);
+                return ok
+                    ? Results.Redirect("/admin/dashboard")
+                    : Results.Redirect("/admin/login?error=failed");
+            });
+
+            app.MapPost("/auth/org/form-login", async (
+                HttpContext context,
+                ReliefAuthService authService,
+                ILogger<Program> logger) =>
+            {
+                try
+                {
+                    var form = await context.Request.ReadFormAsync();
+                    var licenseId = form["licenseId"].FirstOrDefault() ?? "";
+                    var passcode = form["passcode"].FirstOrDefault() ?? "";
+                    if (string.IsNullOrWhiteSpace(licenseId) || string.IsNullOrWhiteSpace(passcode))
+                    {
+                        return Results.Redirect("/org/login?error=failed");
+                    }
+                    var result = await authService.LoginOrganizationAsync(new Api.OrganizationLoginRequest(licenseId, passcode));
+                    return result.IsAuthenticated
+                        ? Results.Redirect($"/org/dashboard?orgId={result.ActorId}")
+                        : Results.Redirect("/org/login?error=failed");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Org form-login error");
+                    return Results.Redirect("/org/login?error=failed");
+                }
             });
         }
     }

@@ -1,31 +1,128 @@
 @page "/volunteers"
+@inject ReliefDbContext Db
 
 <PageTitle>نقطة - المتطوعون</PageTitle>
 
 <section class="feature-page volunteers-page" dir="rtl">
-    <div class="feature-map volunteer-map">
-        <span class="volunteer-pin one">مياه</span>
-        <span class="volunteer-pin two">غذاء</span>
-        <span class="volunteer-pin three">طبي</span>
-    </div>
-
-    <div class="feature-phone">
-        <div class="phone-header">نقطة - الموارد والتحقق الميداني</div>
-        <div class="feature-card primary">
-            <h2>تأكيد تسليم الميدان</h2>
-            <p>إدخال المخزون ونوع الحاجة من نقطة التوزيع، مع حفظ محلي عند ضعف الاتصال.</p>
-            <div class="field-row"><span>الموقع الحالي</span><b>مخيم جباليا</b></div>
-            <div class="field-row"><span>نوع الحاجة</span><b>مياه وغذاء</b></div>
-            <button type="button">تنفيذ تأكيد التسليم</button>
+    <div class="role-header">
+        <div>
+            <span class="eyebrow">المتطوعون</span>
+            <h2>إدارة المتطوعين</h2>
+            <p>إضافة متطوعين جدد ومتابعة تأكيدات التسليم.</p>
         </div>
     </div>
 
-    <aside class="feature-aside">
-        <h2>قائمة المتطوعين</h2>
-        <div class="volunteer-list">
-            <p><b>ليان</b><span>متصل</span></p>
-            <p><b>أحمد</b><span>آخر مزامنة 09:21</span></p>
-            <p><b>سارة</b><span>في الطريق</span></p>
-        </div>
-    </aside>
+    <section class="admin-content-grid">
+        <article class="admin-panel">
+            <div class="admin-panel-title">
+                <h2>إضافة متطوع جديد</h2>
+            </div>
+            <div class="gateway-card" style="max-width:100%">
+                <label for="vol-name">الاسم الكامل</label>
+                <input id="vol-name" @bind="NewName" placeholder="اسم المتطوع" />
+                <label for="vol-phone">رقم الهاتف</label>
+                <input id="vol-phone" @bind="NewPhone" placeholder="رقم الهاتف" />
+                <label for="vol-sector">القطاع</label>
+                <select id="vol-sector" @bind="NewSector">
+                    @foreach (var s in Sectors)
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </select>
+                <button type="button" @onclick="AddVolunteer" disabled="@IsAdding">
+                    @(IsAdding ? "جاري الحفظ..." : "إضافة متطوع")
+                </button>
+                @if (!string.IsNullOrEmpty(AddMessage))
+                {
+                    <div class="result-box @(AddSuccess ? "success" : "warning")">@AddMessage</div>
+                }
+            </div>
+        </article>
+
+        <article class="admin-panel">
+            <div class="admin-panel-title">
+                <h2>قائمة المتطوعين</h2>
+                <p>جميع المتطوعين المسجلين في النظام.</p>
+            </div>
+            <div class="plans-table">
+                <div class="table-head">
+                    <span>الاسم</span>
+                    <span>الهاتف</span>
+                    <span>القطاع</span>
+                    <span>الحالة</span>
+                    <span>تاريخ الانضمام</span>
+                </div>
+                @foreach (var v in VolunteerList)
+                {
+                    <div class="table-row">
+                        <span>@v.FullName</span>
+                        <span>@v.PhoneNumber</span>
+                        <span>@v.Sector</span>
+                        <span>
+                            <span class="pill @(v.IsActive ? "pill-active" : "pill-pending")">
+                                @(v.IsActive ? "نشط" : "غير نشط")
+                            </span>
+                        </span>
+                        <span>@v.JoinedAt.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                    </div>
+                }
+                @if (VolunteerList.Count == 0)
+                {
+                    <p class="empty-state">لا يوجد متطوعون مسجلون بعد.</p>
+                }
+            </div>
+        </article>
+    </section>
 </section>
+
+@code {
+    private string NewName { get; set; } = "";
+    private string NewPhone { get; set; } = "";
+    private string NewSector { get; set; } = "الرمال";
+    private string AddMessage { get; set; } = "";
+    private bool AddSuccess { get; set; }
+    private bool IsAdding { get; set; }
+    private List<Volunteer> VolunteerList { get; set; } = [];
+    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVolunteerList();
+    }
+
+    private async Task LoadVolunteerList()
+    {
+        VolunteerList = await Db.Volunteers
+            .AsNoTracking()
+            .OrderByDescending(x => x.JoinedAt)
+            .ToListAsync();
+    }
+
+    private async Task AddVolunteer()
+    {
+        AddMessage = "";
+        IsAdding = true;
+
+        if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewPhone))
+        {
+            AddMessage = "يرجى تعبئة اسم المتطوع ورقم الهاتف.";
+            IsAdding = false;
+            return;
+        }
+
+        var vol = new Volunteer
+        {
+            FullName = NewName.Trim(),
+            PhoneNumber = NewPhone.Trim(),
+            Sector = NewSector
+        };
+        Db.Volunteers.Add(vol);
+        await Db.SaveChangesAsync();
+        AddSuccess = true;
+        AddMessage = "تم إضافة المتطوع.";
+        NewName = "";
+        NewPhone = "";
+        await LoadVolunteerList();
+        IsAdding = false;
+    }
+}

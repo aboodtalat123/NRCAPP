@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://nrcapp.onrender.com/",
+    "title": "نقطة - بوابة الدخول",
+    "content": "نقطة - مركز تنسيق الإغاثة في غزة. بوابة الدخول الرئيسية."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/admin/login",
+    "title": "نقطة - دخول مسؤول النظام",
+    "content": "دخول مسؤول النظام. مخصص للإدارة العليا لمراجعة المؤسسات والخطط والتعارضات."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/org/dashboard",
+    "title": "نقطة - لوحة المؤسسة",
+    "content": "ملخص الموقع: 2 مؤسسات نشطة، 0 خطة معتمدة."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/citizen/profile",
+    "title": "نقطة - ملف المواطن",
+    "content": "ملف المواطن. يعرض المؤسسات النشطة حسب القطاع والتسجيلات الحالية."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/aid-distribution",
+    "title": "نقطة - الجدولة والتوزيع",
+    "content": "تخطيط التوزيع الذكي."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/analytics",
+    "title": "نقطة - التحليلات",
+    "content": "التحليلات: إحصائيات التوزيع."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/gap-detector",
+    "title": "نقطة - كشف الفجوات",
+    "content": "خريطة الفجوات."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/volunteers",
+    "title": "نقطة - المتطوعون",
+    "content": "الموارد والتحقق الميداني."
+  },
+  {
+    "url": "https://nrcapp.onrender.com/settings",
+    "title": "نقطة - الإعدادات",
+    "content": "إعدادات النموذج التجريبي."
+  }
+]

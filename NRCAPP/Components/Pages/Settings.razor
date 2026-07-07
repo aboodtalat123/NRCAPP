@@ -1,26 +1,119 @@
 @page "/settings"
+@inject ReliefDbContext Db
+@inject AdminAuthService AdminAuth
+@inject NavigationManager Navigation
 
 <PageTitle>نقطة - الإعدادات</PageTitle>
 
 <section class="feature-page settings-page" dir="rtl">
-    <div class="settings-panel">
-        <h2>إعدادات النموذج التجريبي</h2>
-        <label><input type="checkbox" checked /> تفعيل وضع عدم الاتصال</label>
-        <label><input type="checkbox" checked /> إظهار طبقة الفجوات الحرجة</label>
-        <label><input type="checkbox" /> محاكاة تأخير المزامنة</label>
-    </div>
-
-    <div class="feature-phone">
-        <div class="phone-header">نقطة - الإعدادات</div>
-        <div class="feature-card primary">
-            <h2>قنوات المزامنة</h2>
-            <p>رسائل SMS، مكالمة صوتية، ورفع تلقائي عند عودة الاتصال.</p>
-            <button type="button">حفظ الإعدادات</button>
+    <div class="role-header">
+        <div>
+            <span class="eyebrow">الإعدادات</span>
+            <h2>إعدادات النظام</h2>
+            <p>تعديل إعدادات المنصة. جميع التغييرات تُحفظ في قاعدة البيانات.</p>
         </div>
     </div>
 
-    <aside class="feature-aside">
-        <h2>ملاحظة العرض</h2>
-        <p>كل البيانات في هذا النموذج وهمية ومخصصة للعرض الأكاديمي فقط.</p>
-    </aside>
+    <section class="admin-content-grid">
+        <article class="admin-panel">
+            <div class="admin-panel-title">
+                <h2>إعدادات عامة</h2>
+            </div>
+            <div class="settings-panel">
+                @foreach (var setting in AllSettings)
+                {
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <strong>@setting.Key</strong>
+                            @if (!string.IsNullOrEmpty(setting.Description))
+                            {
+                                <p>@setting.Description</p>
+                            }
+                        </div>
+                        @if (setting.Key == "registration_enabled" || setting.Key == "offline_mode_enabled")
+                        {
+                            <button type="button" class="toggle-label" @onclick="() => ToggleSetting(setting.Key)">
+                                @(setting.Value == "true" ? "✅ مفعل" : "❌ معطل")
+                                <small>@setting.Description</small>
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="setting-input">
+                                <input type="text" @bind="setting.Value" />
+                                <button type="button" class="mini-button" @onclick="() => UpdateSetting(setting.Key, setting.Value)">حفظ</button>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (AllSettings.Count == 0)
+                {
+                    <p class="empty-state">لا توجد إعدادات في قاعدة البيانات.</p>
+                }
+                @if (!string.IsNullOrEmpty(SaveMessage))
+                {
+                    <div class="result-box success">@SaveMessage</div>
+                }
+            </div>
+        </article>
+
+        <article class="admin-panel">
+            <div class="admin-panel-title">
+                <h2>معلومات النظام</h2>
+            </div>
+            <div class="settings-info">
+                <p><strong>قاعدة البيانات:</strong> @(Db.Database.IsSqlite() ? "SQLite" : "SQL Server")</p>
+                <p><strong>آخر تحديث إعدادات:</strong>
+                    @if (AllSettings.Count > 0)
+                    {
+                        var maxDate = AllSettings.Max(s => s.UpdatedAt);
+                        <span>@maxDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                    }
+                </p>
+            </div>
+        </article>
+    </section>
 </section>
+
+@code {
+    private List<SystemSetting> AllSettings { get; set; } = [];
+    private string SaveMessage { get; set; } = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminAuth.IsLoggedIn()) { Navigation.NavigateTo("/admin/login"); return; }
+        await LoadSettings();
+    }
+
+    private async Task LoadSettings()
+    {
+        AllSettings = await Db.SystemSettings
+            .AsNoTracking()
+            .OrderBy(x => x.Key)
+            .ToListAsync();
+    }
+
+    private async Task ToggleSetting(string key)
+    {
+        var setting = await Db.SystemSettings.FirstOrDefaultAsync(x => x.Key == key);
+        if (setting is null) return;
+
+        setting.Value = setting.Value == "true" ? "false" : "true";
+        setting.UpdatedAt = DateTimeOffset.UtcNow;
+        await Db.SaveChangesAsync();
+        SaveMessage = $"تم تحديث {key}.";
+        await LoadSettings();
+    }
+
+    private async Task UpdateSetting(string key, string value)
+    {
+        var setting = await Db.SystemSettings.FirstOrDefaultAsync(x => x.Key == key);
+        if (setting is null) return;
+
+        setting.Value = value.Trim();
+        setting.UpdatedAt = DateTimeOffset.UtcNow;
+        await Db.SaveChangesAsync();
+        SaveMessage = $"تم تحديث {key}.";
+        await LoadSettings();
+    }
+}

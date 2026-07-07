@@ -111,3 +111,61 @@ public sealed record CitizenEnrollmentRequest(
 
 public sealed record CitizenAttendanceRequest(
     int RegistrationId);
+
+public sealed record OrgApprovalRequest(int OrganizationId, bool Approve, string? RejectionReason);
+
+public sealed record AuditLogItem(
+    int Id,
+    string ActorType,
+    string Action,
+    string EntityName,
+    int? EntityId,
+    string? Details,
+    DateTimeOffset Timestamp);
+
+public sealed record VolunteerRequest(
+    string FullName,
+    string PhoneNumber,
+    string Sector);
+
+public sealed record VolunteerItem(
+    int Id,
+    string FullName,
+    string PhoneNumber,
+    string Sector,
+    bool IsActive,
+    DateTimeOffset JoinedAt,
+    int? DistributionPlanId);
+
+public sealed record SystemSettingItem(
+    int Id,
+    string Key,
+    string Value,
+    string? Description);
+
+public sealed record UpdateSettingRequest(string Key, string Value);
+
+public sealed record AnalyticsResponse(
+    int ActiveOrganizations,
+    int TotalBeneficiaries,
+    int PlansByStatusDraft,
+    int PlansByStatusAuthorized,
+    int PlansByStatusWarning,
+    int PlansByStatusCompleted,
+    int PlansByStatusCancelled,
+    int TotalDelivered,
+    int TotalApproved,
+    IReadOnlyList<SectorStatItem> SectorStats);
+
+public sealed record SectorStatItem(
+    string Sector,
+    int BeneficiaryCount,
+    int ActivePlanCount,
+    double CoverageRatio);
+
+public sealed record GapItem(
+    string Sector,
+    int RegisteredBeneficiaries,
+    int ActivePlansInDays7,
+    int TotalCapacity,
+    bool IsGap);

@@ -7,7 +7,7 @@ using System.Security.Claims;
 
 namespace NRCAPP.Services;
 
-public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor httpContextAccessor)
+public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor httpContextAccessor, ILogger<ReliefAuthService> logger)
 {
     public async Task<AuthResponse> RegisterOrganizationAsync(OrganizationRegistrationRequest request)
     {
@@ -20,18 +20,18 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
             string.IsNullOrWhiteSpace(authorizedPerson) ||
             string.IsNullOrWhiteSpace(request.Passcode))
         {
-            return new AuthResponse(false, "Organization", null, ngoName, "", "يرجى تعبئة كل بيانات المؤسسة قبل إنشاء الحساب.");
+            return new AuthResponse(false, OrganizationActorType, null, ngoName, "", "يرجى تعبئة كل بيانات المؤسسة قبل إنشاء الحساب.");
         }
 
         if (request.Passcode.Trim().Length < 6)
         {
-            return new AuthResponse(false, "Organization", null, ngoName, "", "رمز الدخول يجب أن يكون 6 خانات على الأقل.");
+            return new AuthResponse(false, OrganizationActorType, null, ngoName, "", "رمز الدخول يجب أن يكون 6 خانات على الأقل.");
         }
 
         var exists = await db.Organizations.AnyAsync(x => x.LicenseId == licenseId);
         if (exists)
         {
-            return new AuthResponse(false, "Organization", null, ngoName, "", "رقم الترخيص مسجل مسبقاً. استخدم تسجيل الدخول.");
+            return new AuthResponse(false, OrganizationActorType, null, ngoName, "", "رقم الترخيص مسجل مسبقاً. استخدم تسجيل الدخول.");
         }
 
         var organization = new Organization
@@ -40,39 +40,58 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
             NgoName = ngoName,
             AuthorizedPerson = authorizedPerson,
             SecurePasscodeHash = PasscodeHasher.Hash(request.Passcode.Trim()),
-            AccessLevel = AccessLevel.Admin,
             IsVerified = true
         };
 
         db.Organizations.Add(organization);
         await db.SaveChangesAsync();
-        await SignInOrganizationAsync(organization);
 
-        return new AuthResponse(true, "Organization", organization.Id, organization.NgoName, organization.AccessLevel.ToString(), "تم إنشاء حساب المؤسسة وحفظه في قاعدة البيانات.");
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorType = OrganizationActorType,
+            Action = "تسجيل مؤسسة جديدة",
+            EntityName = nameof(Organization),
+            EntityId = organization.Id,
+            Details = $"المؤسسة: {ngoName}، الترخيص: {licenseId}"
+        });
+        await db.SaveChangesAsync();
+
+        logger.LogInformation("New organization registered: {NgoName} ({LicenseId}), awaiting admin approval", ngoName, licenseId);
+
+        return new AuthResponse(true, OrganizationActorType, organization.Id, organization.NgoName, "", "تم إنشاء حساب المؤسسة بنجاح.");
     }
 
     public async Task<AuthResponse> LoginOrganizationAsync(OrganizationLoginRequest request)
     {
         var licenseId = request.LicenseId.Trim();
         var organization = await db.Organizations
-            .AsNoTracking()
             .SingleOrDefaultAsync(x => x.LicenseId == licenseId);
 
-        if (organization is null || !organization.IsVerified)
+        if (organization is null)
         {
-            return new AuthResponse(false, "Organization", null, "", "", "رقم الترخيص غير موثق.");
+            return new AuthResponse(false, OrganizationActorType, null, "", "", "رقم الترخيص أو رمز الدخول غير صحيح.");
         }
 
         if (!PasscodeHasher.Verify(request.Passcode, organization.SecurePasscodeHash))
         {
-            return new AuthResponse(false, "Organization", null, organization.NgoName, "", "رمز الدخول غير صحيح.");
+            return new AuthResponse(false, OrganizationActorType, null, "", "", "رقم الترخيص أو رمز الدخول غير صحيح.");
+        }
+
+        if (!organization.IsVerified)
+        {
+            var msg = string.IsNullOrWhiteSpace(organization.RejectionReason)
+                ? "حسابكم قيد المراجعة من قبل الإدارة."
+                : $"لم تتم الموافقة على حسابكم. السبب: {organization.RejectionReason}";
+            return new AuthResponse(false, OrganizationActorType, null, organization.NgoName, "", msg);
         }
 
         await SignInOrganizationAsync(organization);
 
+        logger.LogInformation("Organization logged in: {NgoName} ({LicenseId})", organization.NgoName, licenseId);
+
         return new AuthResponse(
             true,
-            "Organization",
+            OrganizationActorType,
             organization.Id,
             organization.NgoName,
             organization.AccessLevel.ToString(),
@@ -88,12 +107,12 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
 
         if (beneficiary is null)
         {
-            return new AuthResponse(false, "Individual", null, "", "", "رقم الهوية غير موجود.");
+            return new AuthResponse(false, IndividualActorType, null, "", "", "رقم الهوية غير موجود.");
         }
 
         return new AuthResponse(
             beneficiary.VerificationStatus == VerificationStatus.Verified,
-            "Individual",
+            IndividualActorType,
             beneficiary.Id,
             beneficiary.FullName,
             beneficiary.VerificationStatus.ToString(),
@@ -114,18 +133,18 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
             string.IsNullOrWhiteSpace(currentSector) ||
             string.IsNullOrWhiteSpace(phoneNumber))
         {
-            return new AuthResponse(false, "Individual", null, fullName, "", "يرجى تعبئة بيانات المواطن كاملة قبل إنشاء الحساب.");
+            return new AuthResponse(false, IndividualActorType, null, fullName, "", "يرجى تعبئة بيانات المواطن كاملة قبل إنشاء الحساب.");
         }
 
         if (request.FamilyMembersCount <= 0)
         {
-            return new AuthResponse(false, "Individual", null, fullName, "", "عدد أفراد الأسرة يجب أن يكون أكبر من صفر.");
+            return new AuthResponse(false, IndividualActorType, null, fullName, "", "عدد أفراد الأسرة يجب أن يكون أكبر من صفر.");
         }
 
         var exists = await db.Beneficiaries.AnyAsync(x => x.NationalId == nationalId);
         if (exists)
         {
-            return new AuthResponse(false, "Individual", null, fullName, "", "رقم الهوية مسجل مسبقاً. استخدم دخول المواطن.");
+            return new AuthResponse(false, IndividualActorType, null, fullName, "", "رقم الهوية مسجل مسبقاً. استخدم دخول المواطن.");
         }
 
         var beneficiary = new Beneficiary
@@ -141,7 +160,18 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
         db.Beneficiaries.Add(beneficiary);
         await db.SaveChangesAsync();
 
-        return new AuthResponse(true, "Individual", beneficiary.Id, beneficiary.FullName, beneficiary.VerificationStatus.ToString(), "تم إنشاء حساب المواطن وحفظه في قاعدة البيانات.");
+        logger.LogInformation("New citizen registered: {FullName} ({NationalId})", fullName, nationalId);
+
+        return new AuthResponse(true, IndividualActorType, beneficiary.Id, beneficiary.FullName, beneficiary.VerificationStatus.ToString(), "تم إنشاء حساب المواطن.");
+    }
+
+    public async Task SignOutAsync()
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext is not null)
+        {
+            await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
     }
 
     private async Task SignInOrganizationAsync(Organization organization)
@@ -157,8 +187,8 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
             new(ClaimTypes.NameIdentifier, organization.Id.ToString()),
             new(ClaimTypes.Name, organization.NgoName),
             new(ClaimTypes.Role, "OrgManager"),
-            new("actor_type", "Organization"),
-            new("organization_id", organization.Id.ToString())
+            new(ActorTypeClaim, OrganizationActorType),
+            new(OrganizationIdClaim, organization.Id.ToString())
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -172,4 +202,9 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
             });
     }
 
+    public const string ActorTypeClaim = "actor_type";
+    public const string OrganizationIdClaim = "organization_id";
+    public const string OrganizationActorType = "Organization";
+    public const string IndividualActorType = "Individual";
+    public const string AdminActorType = "Admin";
 }

@@ -1,0 +1,109 @@
+@page "/citizen/register"
+@layout MainLayout
+@inject ReliefAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>نقطة - إنشاء مواطن</PageTitle>
+
+<section class="entry-gateway" dir="rtl">
+    <div class="entry-brand">
+        <span>ن</span>
+        <div>
+            <strong>نقطة</strong>
+            <small>مركز تنسيق الإغاثة</small>
+        </div>
+    </div>
+
+    <section class="entry-panel">
+        <div class="panel-title">
+            <h1>إنشاء حساب مواطن</h1>
+            <p>بعد الحفظ يستطيع المواطن الدخول برقم الهوية ومتابعة التوزيعات المتاحة.</p>
+        </div>
+
+        <div class="gateway-card">
+            <label for="citizen-name">الاسم الكامل</label>
+            <input id="citizen-name" @bind="FullName" placeholder="اسم المواطن" />
+
+            <label for="citizen-national">رقم الهوية الوطنية</label>
+            <input id="citizen-national" @bind="NationalId" placeholder="رقم الهوية" />
+
+            <label for="citizen-family">عدد أفراد الأسرة</label>
+            <input id="citizen-family" type="number" min="1" @bind="FamilyMembersCount" />
+
+            <label for="citizen-phone">رقم الهاتف</label>
+            <input id="citizen-phone" @bind="PhoneNumber" placeholder="رقم الهاتف" />
+
+            <label for="citizen-sector">القطاع الحالي</label>
+            <select id="citizen-sector" @bind="Sector">
+                @foreach (var s in Sectors)
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+
+            <button type="button" @onclick="RegisterCitizen" disabled="@IsLoading">
+                @(IsLoading ? "جاري الإرسال..." : "إنشاء حساب المواطن والدخول")
+            </button>
+
+            @if (!string.IsNullOrEmpty(Message))
+            {
+                <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
+            }
+
+            <p class="auth-switch">
+                لديك حساب بالفعل؟
+                <a href="/citizen/login">دخول المواطن</a>
+            </p>
+            <p class="auth-switch"><a href="/">العودة إلى بوابة الدخول</a></p>
+        </div>
+    </section>
+</section>
+
+@code {
+    private string FullName { get; set; } = "";
+    private string NationalId { get; set; } = "";
+    private int FamilyMembersCount { get; set; } = 1;
+    private string PhoneNumber { get; set; } = "";
+    private string Sector { get; set; } = "الرمال";
+    private string Message { get; set; } = "";
+    private bool IsSuccess { get; set; }
+    private bool IsLoading { get; set; }
+
+    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+
+    private async Task RegisterCitizen()
+    {
+        Message = "";
+        IsLoading = true;
+
+        if (string.IsNullOrWhiteSpace(NationalId) || string.IsNullOrWhiteSpace(FullName)
+            || string.IsNullOrWhiteSpace(PhoneNumber))
+        {
+            Message = "يرجى تعبئة كل البيانات.";
+            IsLoading = false;
+            return;
+        }
+
+        if (FamilyMembersCount <= 0)
+        {
+            Message = "عدد أفراد الأسرة يجب أن يكون أكبر من صفر.";
+            IsLoading = false;
+            return;
+        }
+
+        var result = await AuthService.RegisterCitizenAsync(new Api.CitizenRegistrationRequest(
+            NationalId.Trim(), FullName.Trim(), FamilyMembersCount, Sector, PhoneNumber.Trim()));
+
+        if (result.IsAuthenticated)
+        {
+            Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId.Trim())}&sector={Uri.EscapeDataString(Sector)}", forceLoad: true);
+        }
+        else
+        {
+            IsSuccess = false;
+            Message = result.Message ?? "فشل إنشاء الحساب.";
+        }
+
+        IsLoading = false;
+    }
+}

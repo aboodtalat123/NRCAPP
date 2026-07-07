@@ -1,87 +1,154 @@
 @page "/aid-distribution"
-@inject ConflictDetectionService ConflictDetection
 @inject ReliefDbContext Db
+@inject NavigationManager Navigation
 
 <PageTitle>نقطة - الجدولة والتوزيع</PageTitle>
 
 <section class="feature-page schedule-page" dir="rtl">
-    <div class="feature-map">
-        <span class="feature-pin p1">مؤسسة</span>
-        <span class="feature-pin p2">خطة توزيع</span>
-        <span class="feature-pin p3">خان يونس</span>
-    </div>
-
-    <div class="feature-phone">
-        <div class="phone-header">نقطة - الجدولة والمزامنة</div>
-        <div class="feature-card primary">
-            <h2>تخطيط توزيع ذكي</h2>
-            <p>الخطة تُفحص حسب القطاع ونوع المساعدة والتاريخ. إذا كررت نفس المساعدة في نفس القطاع خلال 48 ساعة، تُحفظ كتحذير ولا تُعتمد.</p>
-            <div class="field-row"><span>التاريخ</span><b>بعد 7 أيام</b></div>
-            <div class="field-row"><span>نوع المساعدة</span><b>سلة غذائية</b></div>
-            <button type="button" @onclick="SubmitDemoPlan">حفظ خطة تجريبية للمؤسسة الأولى</button>
-            <button type="button" class="ghost-action" @onclick="SubmitConflictPlan">فحص منع التكرار</button>
-            @if (!string.IsNullOrWhiteSpace(ResultMessage))
-            {
-                <div class="api-result @(Accepted ? "ok" : "warn")">@ResultMessage</div>
-            }
-        </div>
-        <div class="calendar-grid">
-            @foreach (var day in Enumerable.Range(1, 30))
-            {
-                <span class="@(day is 6 or 12 or 19 ? "has-water" : day is 8 or 13 or 20 ? "has-food" : "")">@day</span>
-            }
+    <div class="role-header">
+        <div>
+            <span class="eyebrow">الجدولة والتوزيع</span>
+            <h2>جميع خطط التوزيع</h2>
+            <p>عرض وإنشاء خطط التوزيع عبر القطاعات والمؤسسات.</p>
         </div>
     </div>
 
-    <aside class="feature-aside">
-        <h2>ليش كان يضيف وهلق لا؟</h2>
-        <p>إذا كانت هناك خطة بنفس القطاع ونفس نوع المساعدة خلال 48 ساعة، يحفظ النظام المحاولة كتحذير بدل اعتمادها حتى لا يتكرر التوزيع.</p>
-        <ul>
-            <li>غيّر التاريخ إلى بعد أكثر من 48 ساعة لاعتماد الخطة.</li>
-            <li>أو غيّر القطاع إذا كانت الحاجة في مكان آخر.</li>
-            <li>أو غيّر نوع المساعدة إذا كانت الخدمة مختلفة.</li>
-        </ul>
-    </aside>
+    <section class="admin-stat-grid">
+        <article class="stat-card">
+            <span>إجمالي الخطط</span>
+            <strong>@AllPlans.Count</strong>
+        </article>
+        <article class="stat-card">
+            <span>معتمدة</span>
+            <strong class="success">@AllPlans.Count(p => p.Status == DistributionPlanStatus.Authorized)</strong>
+        </article>
+        <article class="stat-card">
+            <span>تحذير</span>
+            <strong class="warning">@AllPlans.Count(p => p.Status == DistributionPlanStatus.Warning)</strong>
+        </article>
+        <article class="stat-card">
+            <span>مكتملة</span>
+            <strong>@AllPlans.Count(p => p.Status == DistributionPlanStatus.Completed)</strong>
+        </article>
+    </section>
+
+    <div class="filter-bar">
+        <select @bind="FilterSector">
+            <option value="">كل القطاعات</option>
+            @foreach (var s in Sectors)
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+        <select @bind="FilterStatus">
+            <option value="">كل الحالات</option>
+            <option value="Authorized">معتمدة</option>
+            <option value="Warning">تحذير</option>
+            <option value="Completed">مكتملة</option>
+            <option value="Cancelled">ملغية</option>
+        </select>
+    </div>
+
+    <div class="plans-table">
+        <div class="table-head">
+            <span>المؤسسة</span>
+            <span>القطاع</span>
+            <span>المساعدة</span>
+            <span>الكمية</span>
+            <span>السعة</span>
+            <span>التاريخ</span>
+            <span>الحالة</span>
+        </div>
+        @foreach (var plan in FilteredPlans)
+        {
+            <div class="table-row">
+                <span>@plan.OrgName</span>
+                <span>@plan.TargetSector</span>
+                <span>@ToArabicAidType(plan.AidType)</span>
+                <span>@plan.Quantity</span>
+                <span>@plan.MaxCapacity</span>
+                <span>@plan.ScheduledDate.ToLocalTime().ToString("MM/dd HH:mm")</span>
+                <span class="pill @ToStatusClass(plan.Status)">@ToArabicStatus(plan.Status)</span>
+            </div>
+        }
+        @if (FilteredPlans.Count == 0)
+        {
+            <p class="empty-state">لا توجد خطط توزيع بعد.</p>
+        }
+    </div>
+
+    @if (FilteredPlans.Count > 0)
+    {
+        <p class="table-count">إجمالي: @FilteredPlans.Count خطة</p>
+    }
 </section>
 
 @code {
-    private string? ResultMessage { get; set; }
-    private bool Accepted { get; set; }
+    private sealed record PlanView(string OrgName, AidKind AidType, string TargetSector, int Quantity, int MaxCapacity, DateTimeOffset ScheduledDate, DistributionPlanStatus Status);
 
-    private async Task SubmitDemoPlan()
+    private List<PlanView> AllPlans { get; set; } = [];
+    private string FilterSector { get; set; } = "";
+    private string FilterStatus { get; set; } = "";
+    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+
+    private List<PlanView> FilteredPlans
     {
-        await SubmitPlan(DateTimeOffset.UtcNow.AddDays(7), "الرمال");
-    }
-
-    private async Task SubmitConflictPlan()
-    {
-        await SubmitPlan(DateTimeOffset.UtcNow.AddHours(24), "الرمال");
-    }
-
-    private async Task SubmitPlan(DateTimeOffset scheduledDate, string sector)
-    {
-        var organization = await Db.Organizations
-            .AsNoTracking()
-            .OrderBy(x => x.Id)
-            .FirstOrDefaultAsync();
-
-        if (organization is null)
+        get
         {
-            Accepted = false;
-            ResultMessage = "لا توجد مؤسسة مسجلة بعد. ابدأ من بوابة الدخول وأنشئ مؤسسة رسمية أولاً.";
-            return;
+            var q = AllPlans.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(FilterSector))
+                q = q.Where(p => p.TargetSector == FilterSector);
+            if (!string.IsNullOrWhiteSpace(FilterStatus) && Enum.TryParse<DistributionPlanStatus>(FilterStatus, out var status))
+                q = q.Where(p => p.Status == status);
+            return q.ToList();
         }
-
-        var result = await ConflictDetection.SubmitPlanAsync(new(
-            AidKind.FoodBasket,
-            scheduledDate,
-            31.501m,
-            34.466m,
-            sector,
-            250,
-            organization.Id));
-
-        Accepted = result.Accepted;
-        ResultMessage = result.Message;
     }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPlans();
+    }
+
+    private async Task LoadPlans()
+    {
+        AllPlans = await Db.DistributionPlans
+            .AsNoTracking()
+            .Include(x => x.Organization)
+            .OrderByDescending(x => x.ScheduledDate)
+            .Select(x => new PlanView(
+                x.Organization == null ? "غير معروف" : x.Organization.NgoName,
+                x.AidType,
+                x.TargetSector,
+                x.Quantity,
+                x.MaxBeneficiaryCapacity,
+                x.ScheduledDate,
+                x.Status))
+            .ToListAsync();
+    }
+
+    private static string ToArabicAidType(AidKind aidType) => aidType switch
+    {
+        AidKind.FoodBasket => "سلة غذائية",
+        AidKind.SafeDrinkingWater => "مياه آمنة",
+        AidKind.MedicalSupplies => "مستلزمات طبية",
+        AidKind.ShelterKits => "حقائب إيواء",
+        _ => aidType.ToString()
+    };
+
+    private static string ToArabicStatus(DistributionPlanStatus status) => status switch
+    {
+        DistributionPlanStatus.Authorized => "معتمدة",
+        DistributionPlanStatus.Warning => "تحذير",
+        DistributionPlanStatus.Completed => "مكتملة",
+        DistributionPlanStatus.Cancelled => "ملغية",
+        _ => "مسودة"
+    };
+
+    private static string ToStatusClass(DistributionPlanStatus status) => status switch
+    {
+        DistributionPlanStatus.Authorized => "pill-active",
+        DistributionPlanStatus.Warning => "pill-conflict",
+        DistributionPlanStatus.Completed => "pill-done",
+        _ => "pill-pending"
+    };
 }

@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
 
 @if (IsEntryPage)
 {
@@ -25,34 +26,51 @@ else
                     <span class="nav-icon">⌂</span>
                     بوابة الدخول
                 </NavLink>
-                <NavLink class="nav-link" href="org/dashboard">
-                    <span class="nav-icon">م</span>
-                    مسار المؤسسة
-                </NavLink>
-                <NavLink class="nav-link" href="admin/dashboard">
-                    <span class="nav-icon">إ</span>
-                    مسؤول البرنامج
-                </NavLink>
-                <NavLink class="nav-link" href="citizen/profile">
-                    <span class="nav-icon">و</span>
-                    ملف المواطن
-                </NavLink>
+
+                @if (IsOrg)
+                {
+                    <NavLink class="nav-link" href="org/dashboard">
+                        <span class="nav-icon">م</span>
+                        مسار المؤسسة
+                    </NavLink>
+                }
+
+                @if (IsCitizen)
+                {
+                    <NavLink class="nav-link" href="citizen/profile">
+                        <span class="nav-icon">و</span>
+                        ملف المواطن
+                    </NavLink>
+                }
+
                 <NavLink class="nav-link" href="aid-distribution">
                     <span class="nav-icon">✓</span>
                     الجدولة والتوزيع
                 </NavLink>
+
                 <NavLink class="nav-link" href="gap-detector">
                     <span class="nav-icon">!</span>
                     كشف الفجوات
                 </NavLink>
+
                 <NavLink class="nav-link" href="analytics">
                     <span class="nav-icon">▦</span>
                     التحليلات
                 </NavLink>
+
                 <NavLink class="nav-link" href="volunteers">
                     <span class="nav-icon">●</span>
                     المتطوعون
                 </NavLink>
+
+                @if (IsAdmin)
+                {
+                    <NavLink class="nav-link" href="admin/dashboard">
+                        <span class="nav-icon">إ</span>
+                        مسؤول البرنامج
+                    </NavLink>
+                }
+
                 <NavLink class="nav-link" href="settings">
                     <span class="nav-icon">⚙</span>
                     الإعدادات
@@ -60,8 +78,8 @@ else
             </nav>
 
             <div class="sidebar-user">
-                <span class="user-avatar">م</span>
-                <span>جلسة رسمية</span>
+                <span class="user-avatar">@UserInitial</span>
+                <span>@UserLabel</span>
             </div>
         </aside>
 
@@ -108,13 +126,43 @@ else
     private string CurrentTitle { get; set; } = "نقطة - بوابة الدخول";
     private bool IsEntryPage { get; set; } = true;
     private string ClockText { get; set; } = FormatLocalTime();
+    private bool IsOrg { get; set; }
+    private bool IsCitizen { get; set; }
+    private bool IsAdmin { get; set; }
+    private string UserInitial { get; set; } = "م";
+    private string UserLabel { get; set; } = "زائر";
     private readonly CancellationTokenSource clockCancellation = new();
 
     protected override void OnInitialized()
     {
         SetCurrentPage();
+        SetUserContext();
         Navigation.LocationChanged += HandleLocationChanged;
         _ = RunClockAsync();
+    }
+
+    private void SetUserContext()
+    {
+        var user = HttpContextAccessor.HttpContext?.User;
+        if (user?.Identity?.IsAuthenticated == true)
+        {
+            var actorType = user.FindFirst("actor_type")?.Value;
+            IsOrg = actorType == "Organization";
+            IsAdmin = actorType == "Admin";
+            IsCitizen = false;
+
+            var name = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "";
+            UserInitial = name.Length > 0 ? name[..1] : "م";
+            UserLabel = IsOrg ? name : (IsAdmin ? "مسؤول النظام" : "زائر");
+        }
+        else
+        {
+            IsOrg = false;
+            IsAdmin = false;
+            IsCitizen = false;
+            UserInitial = "م";
+            UserLabel = "زائر";
+        }
     }
 
     private void ToggleOffline()
@@ -125,6 +173,7 @@ else
     private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         SetCurrentPage();
+        SetUserContext();
         InvokeAsync(StateHasChanged);
     }
 
@@ -132,11 +181,21 @@ else
     {
         var rawPath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
         var path = rawPath.Trim('/').ToLowerInvariant();
-        IsEntryPage = string.IsNullOrWhiteSpace(path) || path == "admin/login";
+        IsEntryPage = string.IsNullOrWhiteSpace(path)
+            || path == "admin/login"
+            || path == "org/login"
+            || path == "org/register"
+            || path == "citizen/login"
+            || path == "citizen/register";
+
         CurrentTitle = path switch
         {
             "" => "نقطة - بوابة الدخول",
             "admin/login" => "نقطة - دخول مسؤول النظام",
+            "org/login" => "نقطة - دخول مؤسسة",
+            "org/register" => "نقطة - إنشاء مؤسسة",
+            "citizen/login" => "نقطة - دخول مواطن",
+            "citizen/register" => "نقطة - إنشاء مواطن",
             "org/dashboard" => "نقطة - مسار المؤسسة",
             "admin/dashboard" => "نقطة - مسؤول البرنامج",
             "citizen/profile" => "نقطة - ملف المواطن",

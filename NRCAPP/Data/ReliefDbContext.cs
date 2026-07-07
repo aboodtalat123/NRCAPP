@@ -10,6 +10,9 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
     public DbSet<DistributionPlan> DistributionPlans => Set<DistributionPlan>();
     public DbSet<DistributionRegistration> DistributionRegistrations => Set<DistributionRegistration>();
     public DbSet<SyncQueueItem> SyncQueueItems => Set<SyncQueueItem>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Volunteer> Volunteers => Set<Volunteer>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -76,6 +79,7 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             entity.Property(x => x.AuthorizedPerson).HasMaxLength(140).IsRequired();
             entity.Property(x => x.SecurePasscodeHash).HasMaxLength(128).IsRequired();
             entity.Property(x => x.AccessLevel).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.RejectionReason).HasMaxLength(500);
             if (!isSqlServer)
             {
                 entity.Property(x => x.CreatedAt)
@@ -156,6 +160,63 @@ public sealed class ReliefDbContext(DbContextOptions<ReliefDbContext> options) :
             if (isSqlServer)
             {
                 entity.Property(x => x.Timestamp).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ActorType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Action).HasMaxLength(60).IsRequired();
+            entity.Property(x => x.EntityName).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Details).HasMaxLength(1000);
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.Timestamp)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+            if (isSqlServer)
+            {
+                entity.Property(x => x.Timestamp).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
+        });
+
+        modelBuilder.Entity<Volunteer>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.FullName).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.PhoneNumber).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Sector).HasMaxLength(80).IsRequired();
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.JoinedAt)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+            if (isSqlServer)
+            {
+                entity.Property(x => x.JoinedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            }
+            entity.HasOne(x => x.DistributionPlan)
+                .WithMany()
+                .HasForeignKey(x => x.DistributionPlanId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SystemSetting>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.Key).IsUnique();
+            entity.Property(x => x.Key).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Value).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(200);
+            if (!isSqlServer)
+            {
+                entity.Property(x => x.UpdatedAt)
+                    .HasConversion(v => v.ToUnixTimeMilliseconds(), v => DateTimeOffset.FromUnixTimeMilliseconds(v));
+            }
+            if (isSqlServer)
+            {
+                entity.Property(x => x.UpdatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
             }
         });
     }
