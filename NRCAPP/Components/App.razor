@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="@Assets["NRCAPP.styles.css"]" />
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <meta name="nrcapp-ai-api" content="http://localhost:8000" />
+    <meta name="nrcapp-ai-api" content="@(Environment.GetEnvironmentVariable("AI_API_URL") ?? "http://localhost:8000")" />
     <HeadOutlet />
 </head>
 

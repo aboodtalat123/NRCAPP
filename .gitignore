@@ -23,3 +23,9 @@ NRCAPP/App_Data/
 # OS files
 Thumbs.db
 Desktop.ini
+
+# Python AI server
+ai-server/chroma_db/
+ai-server/__pycache__/
+ai-server/*.pyc
+ai-server/.env
