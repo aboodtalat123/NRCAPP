@@ -1,6 +1,5 @@
 @page "/org/register"
 @layout MainLayout
-@inject ReliefAuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>نقطة - إنشاء مؤسسة</PageTitle>
@@ -21,28 +20,36 @@
         </div>
 
         <div class="gateway-card">
-            <label for="org-name">اسم المؤسسة</label>
-            <input id="org-name" @bind="NgoName" placeholder="اسم المؤسسة الرسمي" />
+            <form method="post" action="/auth/org/register">
+                <label for="org-name">اسم المؤسسة</label>
+                <input id="org-name" name="ngoName" placeholder="اسم المؤسسة الرسمي" required />
 
-            <label for="org-license">رقم الترخيص</label>
-            <input id="org-license" @bind="LicenseId" placeholder="رقم الترخيص الرسمي" />
+                <label for="org-license">رقم الترخيص</label>
+                <input id="org-license" name="licenseId" placeholder="رقم الترخيص الرسمي" required />
 
-            <label for="org-person">الشخص المخول</label>
-            <input id="org-person" @bind="AuthorizedPerson" placeholder="اسم المسؤول المخول" />
+                <label for="org-person">الشخص المخول</label>
+                <input id="org-person" name="authorizedPerson" placeholder="اسم المسؤول المخول" required />
 
-            <label for="org-passcode">رمز الدخول</label>
-            <input id="org-passcode" type="password" @bind="Passcode" placeholder="6 خانات على الأقل" />
+                <label for="org-passcode">رمز الدخول</label>
+                <input id="org-passcode" name="passcode" type="password" placeholder="6 خانات على الأقل" required minlength="6" />
 
-            <label for="org-confirm-passcode">تأكيد رمز الدخول</label>
-            <input id="org-confirm-passcode" type="password" @bind="ConfirmPasscode" placeholder="أعد إدخال رمز الدخول" />
+                <label for="org-confirm-passcode">تأكيد رمز الدخول</label>
+                <input id="org-confirm-passcode" name="confirmPasscode" type="password" placeholder="أعد إدخال رمز الدخول" required oninput="if(this.value!=this.form.passcode.value)this.setCustomValidity('رمز الدخول غير متطابق');else this.setCustomValidity('')" />
 
-            <button type="button" @onclick="RegisterOrg" disabled="@IsLoading">
-                @(IsLoading ? "جاري الإرسال..." : "إنشاء حساب جديد")
-            </button>
+                <button type="submit">إنشاء حساب جديد والدخول</button>
+            </form>
 
-            @if (!string.IsNullOrEmpty(Message))
+            @if (Navigation.Uri.Contains("error=empty"))
             {
-                <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
+                <div class="result-box warning">يرجى تعبئة كل البيانات.</div>
+            }
+            else if (Navigation.Uri.Contains("error=passcode"))
+            {
+                <div class="result-box warning">رمز الدخول يجب أن يكون 6 خانات على الأقل.</div>
+            }
+            else if (Navigation.Uri.Contains("error="))
+            {
+                <div class="result-box warning">فشل إنشاء الحساب. قد يكون رقم الترخيص مسجلاً مسبقاً.</div>
             }
 
             <p class="auth-switch">
@@ -53,57 +60,3 @@
         </div>
     </section>
 </section>
-
-@code {
-    private string NgoName { get; set; } = "";
-    private string LicenseId { get; set; } = "";
-    private string AuthorizedPerson { get; set; } = "";
-    private string Passcode { get; set; } = "";
-    private string ConfirmPasscode { get; set; } = "";
-    private string Message { get; set; } = "";
-    private bool IsSuccess { get; set; }
-    private bool IsLoading { get; set; }
-
-    protected override void OnInitialized()
-    {
-        if (Navigation.Uri.Contains("?orgId="))
-        {
-            Navigation.NavigateTo("/org/dashboard", forceLoad: true);
-        }
-    }
-
-    private async Task RegisterOrg()
-    {
-        Message = "";
-        IsLoading = true;
-
-        if (string.IsNullOrWhiteSpace(NgoName) || string.IsNullOrWhiteSpace(LicenseId)
-            || string.IsNullOrWhiteSpace(AuthorizedPerson) || string.IsNullOrWhiteSpace(Passcode))
-        {
-            Message = "يرجى تعبئة كل البيانات.";
-            IsLoading = false;
-            return;
-        }
-
-        if (Passcode != ConfirmPasscode)
-        {
-            Message = "رمز الدخول غير متطابق مع التأكيد.";
-            IsLoading = false;
-            return;
-        }
-
-        if (Passcode.Trim().Length < 6)
-        {
-            Message = "رمز الدخول يجب أن يكون 6 خانات على الأقل.";
-            IsLoading = false;
-            return;
-        }
-
-        var result = await AuthService.RegisterOrganizationAsync(new Api.OrganizationRegistrationRequest(
-            LicenseId.Trim(), NgoName.Trim(), AuthorizedPerson.Trim(), Passcode.Trim()));
-
-        IsSuccess = result.IsAuthenticated;
-        Message = result.Message ?? (result.IsAuthenticated ? "تم إرسال طلبكم، بانتظار اعتماد الإدارة." : "فشل إنشاء الحساب.");
-        IsLoading = false;
-    }
-}

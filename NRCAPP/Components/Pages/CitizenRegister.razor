@@ -1,6 +1,5 @@
 @page "/citizen/register"
 @layout MainLayout
-@inject ReliefAuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>نقطة - إنشاء مواطن</PageTitle>
@@ -21,33 +20,38 @@
         </div>
 
         <div class="gateway-card">
-            <label for="citizen-name">الاسم الكامل</label>
-            <input id="citizen-name" @bind="FullName" placeholder="اسم المواطن" />
+            <form method="post" action="/auth/citizen/register">
+                <label for="citizen-name">الاسم الكامل</label>
+                <input id="citizen-name" name="fullName" placeholder="اسم المواطن" required />
 
-            <label for="citizen-national">رقم الهوية الوطنية</label>
-            <input id="citizen-national" @bind="NationalId" placeholder="رقم الهوية" />
+                <label for="citizen-national">رقم الهوية الوطنية</label>
+                <input id="citizen-national" name="nationalId" placeholder="رقم الهوية" required />
 
-            <label for="citizen-family">عدد أفراد الأسرة</label>
-            <input id="citizen-family" type="number" min="1" @bind="FamilyMembersCount" />
+                <label for="citizen-family">عدد أفراد الأسرة</label>
+                <input id="citizen-family" name="familyMembers" type="number" min="1" value="1" required />
 
-            <label for="citizen-phone">رقم الهاتف</label>
-            <input id="citizen-phone" @bind="PhoneNumber" placeholder="رقم الهاتف" />
+                <label for="citizen-phone">رقم الهاتف</label>
+                <input id="citizen-phone" name="phone" placeholder="رقم الهاتف" required />
 
-            <label for="citizen-sector">القطاع الحالي</label>
-            <select id="citizen-sector" @bind="Sector">
-                @foreach (var s in Sectors)
-                {
-                    <option value="@s">@s</option>
-                }
-            </select>
+                <label for="citizen-sector">القطاع الحالي</label>
+                <select id="citizen-sector" name="sector">
+                    <option value="الرمال">الرمال</option>
+                    <option value="جباليا">جباليا</option>
+                    <option value="خان يونس">خان يونس</option>
+                    <option value="دير البلح">دير البلح</option>
+                    <option value="رفح">رفح</option>
+                </select>
 
-            <button type="button" @onclick="RegisterCitizen" disabled="@IsLoading">
-                @(IsLoading ? "جاري الإرسال..." : "إنشاء حساب المواطن والدخول")
-            </button>
+                <button type="submit">إنشاء حساب المواطن والدخول</button>
+            </form>
 
-            @if (!string.IsNullOrEmpty(Message))
+            @if (Navigation.Uri.Contains("error=empty"))
             {
-                <div class="result-box @(IsSuccess ? "success" : "warning")">@Message</div>
+                <div class="result-box warning">يرجى تعبئة كل البيانات.</div>
+            }
+            else if (Navigation.Uri.Contains("error="))
+            {
+                <div class="result-box warning">فشل إنشاء الحساب. قد يكون رقم الهوية مسجلاً مسبقاً.</div>
             }
 
             <p class="auth-switch">
@@ -58,52 +62,3 @@
         </div>
     </section>
 </section>
-
-@code {
-    private string FullName { get; set; } = "";
-    private string NationalId { get; set; } = "";
-    private int FamilyMembersCount { get; set; } = 1;
-    private string PhoneNumber { get; set; } = "";
-    private string Sector { get; set; } = "الرمال";
-    private string Message { get; set; } = "";
-    private bool IsSuccess { get; set; }
-    private bool IsLoading { get; set; }
-
-    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
-
-    private async Task RegisterCitizen()
-    {
-        Message = "";
-        IsLoading = true;
-
-        if (string.IsNullOrWhiteSpace(NationalId) || string.IsNullOrWhiteSpace(FullName)
-            || string.IsNullOrWhiteSpace(PhoneNumber))
-        {
-            Message = "يرجى تعبئة كل البيانات.";
-            IsLoading = false;
-            return;
-        }
-
-        if (FamilyMembersCount <= 0)
-        {
-            Message = "عدد أفراد الأسرة يجب أن يكون أكبر من صفر.";
-            IsLoading = false;
-            return;
-        }
-
-        var result = await AuthService.RegisterCitizenAsync(new Api.CitizenRegistrationRequest(
-            NationalId.Trim(), FullName.Trim(), FamilyMembersCount, Sector, PhoneNumber.Trim()));
-
-        if (result.IsAuthenticated)
-        {
-            Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId.Trim())}&sector={Uri.EscapeDataString(Sector)}", forceLoad: true);
-        }
-        else
-        {
-            IsSuccess = false;
-            Message = result.Message ?? "فشل إنشاء الحساب.";
-        }
-
-        IsLoading = false;
-    }
-}

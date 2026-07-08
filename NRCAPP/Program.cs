@@ -733,6 +733,63 @@ namespace NRCAPP
 
         private static void MapFormAuthEndpoints(WebApplication app)
         {
+            app.MapPost("/auth/org/register", async (
+                HttpContext context,
+                ReliefAuthService authService) =>
+            {
+                var form = await context.Request.ReadFormAsync();
+                var licenseId = form["licenseId"].FirstOrDefault() ?? "";
+                var ngoName = form["ngoName"].FirstOrDefault() ?? "";
+                var authorizedPerson = form["authorizedPerson"].FirstOrDefault() ?? "";
+                var passcode = form["passcode"].FirstOrDefault() ?? "";
+                if (string.IsNullOrWhiteSpace(licenseId) || string.IsNullOrWhiteSpace(ngoName)
+                    || string.IsNullOrWhiteSpace(authorizedPerson) || string.IsNullOrWhiteSpace(passcode))
+                {
+                    return Results.Redirect("/org/register?error=empty");
+                }
+                if (passcode.Trim().Length < 6)
+                {
+                    return Results.Redirect("/org/register?error=passcode");
+                }
+                var result = await authService.RegisterOrganizationAsync(new Api.OrganizationRegistrationRequest(
+                    licenseId.Trim(), ngoName.Trim(), authorizedPerson.Trim(), passcode.Trim()));
+                if (!result.IsAuthenticated)
+                {
+                    return Results.Redirect($"/org/register?error={Uri.EscapeDataString(result.Message ?? "failed")}");
+                }
+                // Auto-login after registration
+                await authService.LoginOrganizationAsync(new Api.OrganizationLoginRequest(licenseId.Trim(), passcode.Trim()));
+                return Results.Redirect($"/org/dashboard?orgId={result.ActorId}");
+            });
+
+            app.MapPost("/auth/citizen/register", async (
+                HttpContext context,
+                ReliefAuthService authService) =>
+            {
+                var form = await context.Request.ReadFormAsync();
+                var nationalId = form["nationalId"].FirstOrDefault() ?? "";
+                var fullName = form["fullName"].FirstOrDefault() ?? "";
+                var familyStr = form["familyMembers"].FirstOrDefault() ?? "1";
+                var sector = form["sector"].FirstOrDefault() ?? "الرمال";
+                var phone = form["phone"].FirstOrDefault() ?? "";
+                if (string.IsNullOrWhiteSpace(nationalId) || string.IsNullOrWhiteSpace(fullName)
+                    || string.IsNullOrWhiteSpace(phone))
+                {
+                    return Results.Redirect("/citizen/register?error=empty");
+                }
+                int.TryParse(familyStr, out var familyMembers);
+                if (familyMembers <= 0) familyMembers = 1;
+                var result = await authService.RegisterCitizenAsync(new Api.CitizenRegistrationRequest(
+                    nationalId.Trim(), fullName.Trim(), familyMembers, sector, phone.Trim()));
+                if (!result.IsAuthenticated)
+                {
+                    return Results.Redirect($"/citizen/register?error={Uri.EscapeDataString(result.Message ?? "failed")}");
+                }
+                // Auto-login after registration
+                await authService.LoginIndividualAsync(new Api.IndividualLoginRequest(nationalId.Trim()));
+                return Results.Redirect($"/citizen/profile?nationalId={Uri.EscapeDataString(nationalId.Trim())}&sector={Uri.EscapeDataString(sector)}");
+            });
+
             app.MapPost("/auth/citizen/form-login", async (
                 HttpContext context,
                 ReliefAuthService authService) =>
