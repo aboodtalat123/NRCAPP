@@ -322,6 +322,12 @@ body.nrcapp-chat-open #blazor-error-ui {
         if (el) el.remove();
     }
 
+    function fetchUserContext() {
+        return fetch('/api/ai/my-context', { credentials: 'include' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .catch(function () { return null; });
+    }
+
     function sendQuestion() {
         var question = input.value.trim();
         if (!question) return;
@@ -331,10 +337,19 @@ body.nrcapp-chat-open #blazor-error-ui {
         sendBtn.disabled = true;
         showTyping();
 
-        fetch(API_URL + '/ask', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: question })
+        // 1. نجلب سياق المستخدم (إذا مسجل دخول — الكوكي يترسل تلقائياً)
+        // 2. نرسل السؤال + السياق للذكاء
+        fetchUserContext().then(function (userContext) {
+            var body = { question: question };
+            if (userContext && userContext.actor !== 'guest') {
+                body.user_context = userContext;
+            }
+
+            return fetch(API_URL + '/ask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
         })
         .then(function (r) {
             if (!r.ok) throw new Error('خطأ في الاتصال');

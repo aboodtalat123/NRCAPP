@@ -102,7 +102,6 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
     {
         var nationalId = request.NationalId.Trim();
         var beneficiary = await db.Beneficiaries
-            .AsNoTracking()
             .SingleOrDefaultAsync(x => x.NationalId == nationalId);
 
         if (beneficiary is null)
@@ -110,15 +109,22 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
             return new AuthResponse(false, IndividualActorType, null, "", "", "رقم الهوية غير موجود.");
         }
 
+        if (beneficiary.VerificationStatus != VerificationStatus.Verified)
+        {
+            return new AuthResponse(false, IndividualActorType, null, beneficiary.FullName, "", "الهوية موجودة لكنها تحتاج تحققاً ميدانياً.");
+        }
+
+        await SignInIndividualAsync(beneficiary);
+
+        logger.LogInformation("Citizen logged in: {FullName} ({NationalId})", beneficiary.FullName, nationalId);
+
         return new AuthResponse(
-            beneficiary.VerificationStatus == VerificationStatus.Verified,
+            true,
             IndividualActorType,
             beneficiary.Id,
             beneficiary.FullName,
             beneficiary.VerificationStatus.ToString(),
-            beneficiary.VerificationStatus == VerificationStatus.Verified
-                ? "تم التحقق من الهوية."
-                : "الهوية موجودة لكنها تحتاج تحققاً ميدانياً.");
+            "تم التحقق من الهوية.");
     }
 
     public async Task<AuthResponse> RegisterCitizenAsync(CitizenRegistrationRequest request)
@@ -189,6 +195,33 @@ public sealed class ReliefAuthService(ReliefDbContext db, IHttpContextAccessor h
             new(ClaimTypes.Role, "OrgManager"),
             new(ActorTypeClaim, OrganizationActorType),
             new(OrganizationIdClaim, organization.Id.ToString())
+        };
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await httpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity),
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+            });
+    }
+
+    private async Task SignInIndividualAsync(Beneficiary beneficiary)
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext is null)
+        {
+            return;
+        }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, beneficiary.Id.ToString()),
+            new(ClaimTypes.Name, beneficiary.FullName),
+            new(ActorTypeClaim, IndividualActorType),
+            new("national_id", beneficiary.NationalId)
         };
 
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);

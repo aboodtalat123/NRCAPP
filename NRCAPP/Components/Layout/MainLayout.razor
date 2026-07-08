@@ -149,11 +149,11 @@ else
             var actorType = user.FindFirst("actor_type")?.Value;
             IsOrg = actorType == "Organization";
             IsAdmin = actorType == "Admin";
-            IsCitizen = false;
+            IsCitizen = actorType == "Individual";
 
             var name = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "";
             UserInitial = name.Length > 0 ? name[..1] : "م";
-            UserLabel = IsOrg ? name : (IsAdmin ? "مسؤول النظام" : "زائر");
+            UserLabel = IsOrg ? name : (IsAdmin ? "مسؤول النظام" : (IsCitizen ? name : "زائر"));
         }
         else
         {

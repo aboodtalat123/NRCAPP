@@ -23,6 +23,7 @@
             <a href="/admin/dashboard#organizations">المؤسسات</a>
             <a href="/admin/dashboard#audit">سجل النظام</a>
             <a href="/analytics">تقارير</a>
+            <button type="button" @onclick="RefreshAIKnowledge" title="إعادة بناء قاعدة معرفة الذكاء الاصطناعي">🔄 تحديث AI</button>
             <button type="button" @onclick="Logout">تسجيل الخروج</button>
         </nav>
     </aside>
@@ -58,6 +59,13 @@
                 <strong class="warning">@PendingSyncCount</strong>
             </article>
         </section>
+
+        @if (RefreshMessage is not null)
+        {
+            <div style="margin-bottom:14px;padding:12px 14px;border-radius:10px;font-size:13px;font-weight:850;line-height:1.7;@(RefreshMessage.Contains("✅") ? "border:1px solid rgba(21,154,116,0.35);background:rgba(21,154,116,0.12);color:#0F3D4A" : "border:1px solid rgba(229,185,78,0.48);background:#FFF4CF;color:#755612")">
+                @RefreshMessage
+            </div>
+        }
 
         <section class="admin-content-grid">
             @if (PendingApprovalCount > 0)
@@ -319,6 +327,32 @@
         {
             RejectError = msg;
         }
+    }
+
+    private string? RefreshMessage { get; set; }
+    private bool IsRefreshing { get; set; }
+
+    private async Task RefreshAIKnowledge()
+    {
+        IsRefreshing = true;
+        RefreshMessage = "جاري تحديث قاعدة المعرفة...";
+        try
+        {
+            using var http = new HttpClient();
+            var aiUrl = "http://localhost:8000";
+            var refreshKey = "nrcapp-refresh-2024";
+            var response = await http.PostAsync($"{aiUrl}/admin/refresh-knowledge?admin_key={refreshKey}", null);
+            var body = await response.Content.ReadAsStringAsync();
+            if (response.IsSuccessStatusCode)
+                RefreshMessage = "✅ تم إعادة بناء قاعدة المعرفة بنجاح";
+            else
+                RefreshMessage = $"❌ فشل التحديث: {body}";
+        }
+        catch (Exception ex)
+        {
+            RefreshMessage = $"❌ خطأ في الاتصال: {ex.Message}";
+        }
+        IsRefreshing = false;
     }
 
     private async Task Logout()

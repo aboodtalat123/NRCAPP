@@ -1,7 +1,5 @@
 @page "/citizen/login"
 @layout MainLayout
-@inject ReliefAuthService AuthService
-@inject NavigationManager Navigation
 
 <PageTitle>نقطة - دخول مواطن</PageTitle>
 
@@ -21,24 +19,25 @@
         </div>
 
         <div class="gateway-card">
-            <label for="citizen-login-national">رقم الهوية الوطنية</label>
-            <input id="citizen-login-national" @bind="NationalId" placeholder="رقم الهوية" />
+            <form method="post" action="/auth/citizen/form-login">
+                <label for="citizen-login-national">رقم الهوية الوطنية</label>
+                <input id="citizen-login-national" name="nationalId" placeholder="رقم الهوية" required />
 
-            <label for="citizen-login-sector">القطاع الحالي</label>
-            <select id="citizen-login-sector" @bind="Sector">
-                @foreach (var s in Sectors)
-                {
-                    <option value="@s">@s</option>
-                }
-            </select>
+                <label for="citizen-login-sector">القطاع الحالي</label>
+                <select id="citizen-login-sector" name="sector">
+                    <option value="الرمال">الرمال</option>
+                    <option value="جباليا">جباليا</option>
+                    <option value="خان يونس">خان يونس</option>
+                    <option value="دير البلح">دير البلح</option>
+                    <option value="رفح">رفح</option>
+                </select>
 
-            <button type="button" @onclick="LoginCitizen" disabled="@IsLoading">
-                @(IsLoading ? "جاري الدخول..." : "فتح ملف المواطن")
-            </button>
+                <button type="submit">فتح ملف المواطن</button>
+            </form>
 
-            @if (!string.IsNullOrEmpty(Message))
+            @if (ShowError)
             {
-                <div class="result-box warning">@Message</div>
+                <div class="result-box warning">رقم الهوية غير موجود أو الحساب غير مفعل.</div>
             }
 
             <p class="auth-switch">
@@ -51,36 +50,8 @@
 </section>
 
 @code {
-    private string NationalId { get; set; } = "";
-    private string Sector { get; set; } = "الرمال";
-    private string Message { get; set; } = "";
-    private bool IsLoading { get; set; }
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? Error { get; set; }
 
-    private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
-
-    private async Task LoginCitizen()
-    {
-        Message = "";
-        IsLoading = true;
-
-        if (string.IsNullOrWhiteSpace(NationalId))
-        {
-            Message = "يرجى إدخال رقم الهوية.";
-            IsLoading = false;
-            return;
-        }
-
-        var result = await AuthService.LoginIndividualAsync(new Api.IndividualLoginRequest(NationalId.Trim()));
-
-        if (result.IsAuthenticated)
-        {
-            Navigation.NavigateTo($"/citizen/profile?nationalId={Uri.EscapeDataString(NationalId.Trim())}&sector={Uri.EscapeDataString(Sector)}", forceLoad: true);
-        }
-        else
-        {
-            Message = result.Message ?? "رقم الهوية غير موجود.";
-        }
-
-        IsLoading = false;
-    }
+    private bool ShowError => Error == "failed";
 }

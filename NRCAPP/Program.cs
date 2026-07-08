@@ -6,6 +6,7 @@ using NRCAPP.Api;
 using NRCAPP.Components;
 using NRCAPP.Data;
 using NRCAPP.Services;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using FluentValidation;
 using Serilog;
@@ -465,6 +466,147 @@ namespace NRCAPP
                 return Results.Ok(pending);
             });
 
+            // === AI: my-context (محمي بالمصادقة — يعطي الذكاء سياق المستخدم الحالي) ===
+            api.MapGet("/ai/my-context", async (ReliefDbContext db, HttpContext http) =>
+            {
+                var user = http.User;
+                if (user?.Identity?.IsAuthenticated != true)
+                    return Results.Ok(new { actor = "guest" });
+
+                var actorType = user.FindFirst("actor_type")?.Value;
+
+                if (actorType == "Admin")
+                {
+                    var username = user.FindFirst("admin_username")?.Value ?? "";
+                    var fullName = user.FindFirst(ClaimTypes.Name)?.Value ?? "";
+                    var role = user.FindFirst(ClaimTypes.Role)?.Value ?? "";
+                    var stats = new
+                    {
+                        organizations = await db.Organizations.CountAsync(x => x.IsVerified),
+                        beneficiaries = await db.Beneficiaries.CountAsync(),
+                        plansActive = await db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Authorized),
+                        plansWarning = await db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Warning),
+                        volunteers = await db.Volunteers.CountAsync(x => x.IsActive),
+                    };
+                    return Results.Ok(new
+                    {
+                        actor = "admin",
+                        username,
+                        fullName,
+                        role,
+                        stats
+                    });
+                }
+
+                if (actorType == "Individual")
+                {
+                    var beneficiaryIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                    if (int.TryParse(beneficiaryIdStr, out var beneficiaryId))
+                    {
+                        var ben = await db.Beneficiaries
+                            .AsNoTracking()
+                            .Include(x => x.DistributionRegistrations)
+                                .ThenInclude(x => x.DistributionPlan)
+                            .FirstOrDefaultAsync(x => x.Id == beneficiaryId);
+                        if (ben is not null)
+                        {
+                            var registrations = ben.DistributionRegistrations
+                                .OrderByDescending(x => x.RequestedAt)
+                                .Select(r => new
+                                {
+                                    r.Id,
+                                    planId = r.DistributionPlanId,
+                                    planName = r.DistributionPlan!.AidType.ToString(),
+                                    sector = r.DistributionPlan.TargetSector,
+                                    r.DistributionPlan.ScheduledDate,
+                                    status = r.Status.ToString()
+                                }).ToList();
+                            return Results.Ok(new
+                            {
+                                actor = "individual",
+                                fullName = ben.FullName,
+                                nationalId = ben.NationalId,
+                                currentSector = ben.CurrentSector,
+                                familyMembers = ben.FamilyMembersCount,
+                                registrations
+                            });
+                        }
+                    }
+                }
+
+                if (actorType == "Organization")
+                {
+                    var orgIdStr = user.FindFirst("organization_id")?.Value;
+                    if (int.TryParse(orgIdStr, out var orgId))
+                    {
+                        var org = await db.Organizations
+                            .AsNoTracking()
+                            .Include(x => x.DistributionPlans)
+                            .FirstOrDefaultAsync(x => x.Id == orgId);
+                        if (org is not null)
+                        {
+                            var plans = org.DistributionPlans
+                                .OrderByDescending(x => x.ScheduledDate)
+                                .Select(p => new
+                                {
+                                    p.Id, p.AidType, p.TargetSector,
+                                    p.ScheduledDate, p.Status, p.Quantity
+                                }).ToList();
+                            return Results.Ok(new
+                            {
+                                actor = "organization",
+                                name = org.NgoName,
+                                licenseId = org.LicenseId,
+                                authorizedPerson = org.AuthorizedPerson,
+                                isVerified = org.IsVerified,
+                                plans
+                            });
+                        }
+                    }
+                }
+
+                return Results.Ok(new { actor = "guest" });
+            });
+
+            // === AI Knowledge Snapshot (live stats) ===
+            api.MapGet("/ai/knowledge-snapshot", async (ReliefDbContext db) =>
+            {
+                var totalOrgs = await db.Organizations.CountAsync(x => x.IsVerified);
+                var totalBeneficiaries = await db.Beneficiaries.CountAsync();
+                var totalVolunteers = await db.Volunteers.CountAsync(x => x.IsActive);
+                var totalPlans = await db.DistributionPlans.CountAsync();
+                var plansAuthorized = await db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Authorized);
+                var plansWarning = await db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Warning);
+                var plansCompleted = await db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Completed);
+                var totalDelivered = await db.DistributionRegistrations.CountAsync(x => x.Status == RegistrationStatus.Delivered);
+
+                var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
+                var sectorStats = new List<object>();
+                foreach (var sector in sectors)
+                {
+                    var beneficiaryCount = await db.Beneficiaries.CountAsync(x => x.CurrentSector == sector);
+                    var planCount = await db.DistributionPlans
+                        .CountAsync(x => x.TargetSector == sector && x.Status == DistributionPlanStatus.Authorized);
+                    sectorStats.Add(new { sector, beneficiaries = beneficiaryCount, activePlans = planCount });
+                }
+
+                return Results.Ok(new
+                {
+                    organizations = totalOrgs,
+                    beneficiaries = totalBeneficiaries,
+                    volunteers = totalVolunteers,
+                    plans = new
+                    {
+                        total = totalPlans,
+                        authorized = plansAuthorized,
+                        warning = plansWarning,
+                        completed = plansCompleted
+                    },
+                    delivered = totalDelivered,
+                    sectors = sectorStats
+                });
+            });
+
             // === Citizens ===
             api.MapGet("/citizens/{nationalId}/profile", async (
                 string nationalId,
@@ -591,6 +733,23 @@ namespace NRCAPP
 
         private static void MapFormAuthEndpoints(WebApplication app)
         {
+            app.MapPost("/auth/citizen/form-login", async (
+                HttpContext context,
+                ReliefAuthService authService) =>
+            {
+                var form = await context.Request.ReadFormAsync();
+                var nationalId = form["nationalId"].FirstOrDefault() ?? "";
+                var sector = form["sector"].FirstOrDefault() ?? "الرمال";
+                if (string.IsNullOrWhiteSpace(nationalId))
+                {
+                    return Results.Redirect("/citizen/login?error=failed");
+                }
+                var result = await authService.LoginIndividualAsync(new Api.IndividualLoginRequest(nationalId));
+                return result.IsAuthenticated
+                    ? Results.Redirect($"/citizen/profile?nationalId={Uri.EscapeDataString(nationalId)}&sector={Uri.EscapeDataString(sector)}")
+                    : Results.Redirect("/citizen/login?error=failed");
+            });
+
             app.MapPost("/auth/admin/form-login", async (
                 HttpContext context,
                 AdminAuthService adminAuth) =>

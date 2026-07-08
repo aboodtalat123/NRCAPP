@@ -232,7 +232,7 @@ public static class ReliefDataSeeder
         db.Admins.Add(new Admin
         {
             Username = "admin",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("nrcapp2024"),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
             FullName = "مسؤول النظام",
             Role = "SuperAdmin",
             IsActive = true
