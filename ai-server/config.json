@@ -1,0 +1,23 @@
+{
+  "site_name": "نقطة",
+  "site_url": "https://nrcapp.onrender.com",
+  "ai_server_url": "https://nrcapp-ai-assistant.onrender.com",
+
+  "chroma_collection_name": "site_content",
+  "chroma_dir": "chroma_db",
+  "gemini_model": "gemini-2.0-flash-lite",
+  "embedding_model": "models/gemini-embedding-001",
+
+  "routes": [
+    "/", "/admin/login", "/org/login", "/org/register",
+    "/citizen/login", "/citizen/register",
+    "/aid-distribution", "/analytics", "/gap-detector",
+    "/volunteers", "/settings"
+  ],
+
+  "accounts": [
+    { "role": "org",     "username": "123456",     "password": "123456" },
+    { "role": "citizen", "username": "123456",     "password": null },
+    { "role": "admin",   "username": "admin",      "password": "123456" }
+  ]
+}

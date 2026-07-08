@@ -34,3 +34,4 @@ ai-server/.env
 ai-server/local_crawl_data.db
 ai-server/site_content_new.json
 ai-server/backups/
+temp-ai-repo/
