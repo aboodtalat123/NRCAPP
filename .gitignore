@@ -29,3 +29,8 @@ ai-server/chroma_db/
 ai-server/__pycache__/
 ai-server/*.pyc
 ai-server/.env
+
+# Crawl output (local only, never push to GitHub)
+ai-server/local_crawl_data.db
+ai-server/site_content_new.json
+ai-server/backups/
