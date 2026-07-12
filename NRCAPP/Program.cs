@@ -689,16 +689,6 @@ namespace NRCAPP
                 CitizenEnrollmentRequest request,
                 ReliefDbContext db) =>
             {
-                var hasActive = await db.DistributionRegistrations
-                    .AnyAsync(x => x.BeneficiaryId == request.BeneficiaryId
-                        && x.Status != RegistrationStatus.Delivered
-                        && x.Status != RegistrationStatus.Rejected);
-
-                if (hasActive)
-                {
-                    return Results.Conflict(new { message = "لديك تسجيل نشط بالفعل. لا يمكنك التسجيل في خطة أخرى قبل استلام المساعدة الأولى." });
-                }
-
                 var exists = await db.DistributionRegistrations
                     .AnyAsync(x => x.BeneficiaryId == request.BeneficiaryId && x.DistributionPlanId == request.DistributionPlanId);
 
