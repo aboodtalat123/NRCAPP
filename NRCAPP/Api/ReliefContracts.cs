@@ -169,3 +169,12 @@ public sealed record GapItem(
     int ActivePlansInDays7,
     int TotalCapacity,
     bool IsGap);
+
+public sealed record TodayDistributionItem(
+    string Sector,
+    string OrganizationName,
+    AidKind AidType,
+    DateTimeOffset ScheduledDate,
+    int Capacity,
+    int ConfirmedAttendance,
+    int AvailableSpots);

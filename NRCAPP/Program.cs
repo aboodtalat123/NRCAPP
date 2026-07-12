@@ -739,6 +739,37 @@ namespace NRCAPP
 
                 return Results.Ok(new { message = "تم تأكيد الحضور وحجز الدور." });
             });
+
+            // === Public API (آمن — ما فيه بيانات خاصة) ===
+            api.MapGet("/public/today-distributions", async (ReliefDbContext db) =>
+            {
+                var now = DateTimeOffset.UtcNow;
+                var todayEnd = now.Date.AddDays(1).ToUniversalTime();
+
+                var distributions = await db.DistributionPlans
+                    .AsNoTracking()
+                    .Include(x => x.Organization)
+                    .Include(x => x.Registrations)
+                    .Where(x => x.Status == DistributionPlanStatus.Authorized)
+                    .Where(x => x.ScheduledDate >= now && x.ScheduledDate <= todayEnd)
+                    .OrderBy(x => x.ScheduledDate)
+                    .Select(x => new TodayDistributionItem(
+                        x.TargetSector,
+                        x.Organization == null ? "غير معروف" : x.Organization.NgoName,
+                        x.AidType,
+                        x.ScheduledDate,
+                        x.MaxBeneficiaryCapacity,
+                        x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed || reg.Status == RegistrationStatus.Delivered),
+                        x.MaxBeneficiaryCapacity - x.Registrations.Count(reg => reg.Status == RegistrationStatus.AttendanceConfirmed || reg.Status == RegistrationStatus.Delivered)))
+                    .ToListAsync();
+
+                return Results.Ok(new
+                {
+                    date = now.Date,
+                    has_distributions_today = distributions.Count > 0,
+                    distributions
+                });
+            });
         }
 
         private static void MapFormAuthEndpoints(WebApplication app)
