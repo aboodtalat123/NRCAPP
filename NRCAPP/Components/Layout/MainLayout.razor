@@ -135,10 +135,17 @@ else
 
     protected override void OnInitialized()
     {
-        SetCurrentPage();
-        SetUserContext();
-        Navigation.LocationChanged += HandleLocationChanged;
-        _ = RunClockAsync();
+        try
+        {
+            SetCurrentPage();
+            SetUserContext();
+            Navigation.LocationChanged += HandleLocationChanged;
+            _ = RunClockAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Layout] {ex.Message}");
+        }
     }
 
     private void SetUserContext()

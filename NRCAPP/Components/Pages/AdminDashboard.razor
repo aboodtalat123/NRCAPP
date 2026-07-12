@@ -218,16 +218,23 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!AdminAuth.IsLoggedIn())
+        try
         {
-            Navigation.NavigateTo("/admin/login");
-            return;
+            if (!AdminAuth.IsLoggedIn())
+            {
+                Navigation.NavigateTo("/admin/login");
+                return;
+            }
+
+            var user = HttpContextAccessor.HttpContext?.User;
+            AdminName = user?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "مسؤول النظام";
+
+            await LoadDashboardAsync();
         }
-
-        var user = HttpContextAccessor.HttpContext?.User;
-        AdminName = user?.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "مسؤول النظام";
-
-        await LoadDashboardAsync();
+        catch (Exception ex)
+        {
+            AdminName = $"خطأ في تحميل البيانات: {ex.Message}";
+        }
     }
 
     private async Task LoadDashboardAsync()
@@ -266,33 +273,47 @@
 
     private async Task ToggleOrganizationAsync(int id)
     {
-        var organization = await Db.Organizations.SingleOrDefaultAsync(x => x.Id == id);
-        if (organization is null) return;
-
-        organization.IsVerified = !organization.IsVerified;
-        if (!organization.IsVerified)
+        try
         {
-            organization.RejectionReason = "تم التعليق بواسطة المسؤول";
+            var organization = await Db.Organizations.SingleOrDefaultAsync(x => x.Id == id);
+            if (organization is null) return;
+
+            organization.IsVerified = !organization.IsVerified;
+            if (!organization.IsVerified)
+            {
+                organization.RejectionReason = "تم التعليق بواسطة المسؤول";
+            }
+            await Db.SaveChangesAsync();
+
+            Db.AuditLogs.Add(new AuditLog
+            {
+                ActorType = "Admin",
+                Action = organization.IsVerified ? "تفعيل مؤسسة" : "تعليق مؤسسة",
+                EntityName = nameof(Organization),
+                EntityId = organization.Id,
+                Details = $"{organization.NgoName} ({organization.LicenseId})"
+            });
+            await Db.SaveChangesAsync();
+
+            await LoadDashboardAsync();
         }
-        await Db.SaveChangesAsync();
-
-        Db.AuditLogs.Add(new AuditLog
+        catch (Exception ex)
         {
-            ActorType = "Admin",
-            Action = organization.IsVerified ? "تفعيل مؤسسة" : "تعليق مؤسسة",
-            EntityName = nameof(Organization),
-            EntityId = organization.Id,
-            Details = $"{organization.NgoName} ({organization.LicenseId})"
-        });
-        await Db.SaveChangesAsync();
-
-        await LoadDashboardAsync();
+            Console.Error.WriteLine($"[ToggleOrganization] {ex.Message}");
+        }
     }
 
     private async Task ApproveOrg(int orgId)
     {
-        var (success, msg) = await AdminAuth.ApproveOrganizationAsync(orgId);
-        if (success) await LoadDashboardAsync();
+        try
+        {
+            var (success, msg) = await AdminAuth.ApproveOrganizationAsync(orgId);
+            if (success) await LoadDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[ApproveOrg] {ex.Message}");
+        }
     }
 
     private void ShowRejectDialog(int orgId, string orgName)
@@ -311,21 +332,28 @@
 
     private async Task ConfirmReject()
     {
-        if (string.IsNullOrWhiteSpace(RejectReason))
+        try
         {
-            RejectError = "الرجاء إدخال سبب الرفض.";
-            return;
-        }
+            if (string.IsNullOrWhiteSpace(RejectReason))
+            {
+                RejectError = "الرجاء إدخال سبب الرفض.";
+                return;
+            }
 
-        var (success, msg) = await AdminAuth.RejectOrganizationAsync(RejectOrgId, RejectReason);
-        if (success)
-        {
-            ShowRejectForm = false;
-            await LoadDashboardAsync();
+            var (success, msg) = await AdminAuth.RejectOrganizationAsync(RejectOrgId, RejectReason);
+            if (success)
+            {
+                ShowRejectForm = false;
+                await LoadDashboardAsync();
+            }
+            else
+            {
+                RejectError = msg;
+            }
         }
-        else
+        catch (Exception ex)
         {
-            RejectError = msg;
+            RejectError = $"خطأ: {ex.Message}";
         }
     }
 
@@ -357,7 +385,14 @@
 
     private async Task Logout()
     {
-        await AdminAuth.LogoutAsync();
+        try
+        {
+            await AdminAuth.LogoutAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Logout] {ex.Message}");
+        }
         Navigation.NavigateTo("/admin/login", forceLoad: true);
     }
 }

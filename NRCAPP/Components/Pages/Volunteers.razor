@@ -87,7 +87,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadVolunteerList();
+        try
+        {
+            await LoadVolunteerList();
+        }
+        catch (Exception ex)
+        {
+            AddMessage = $"خطأ في تحميل قائمة المتطوعين: {ex.Message}";
+        }
     }
 
     private async Task LoadVolunteerList()
@@ -102,27 +109,36 @@
     {
         AddMessage = "";
         IsAdding = true;
-
-        if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewPhone))
+        try
         {
-            AddMessage = "يرجى تعبئة اسم المتطوع ورقم الهاتف.";
-            IsAdding = false;
-            return;
+            if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewPhone))
+            {
+                AddMessage = "يرجى تعبئة اسم المتطوع ورقم الهاتف.";
+                return;
+            }
+
+            var vol = new Volunteer
+            {
+                FullName = NewName.Trim(),
+                PhoneNumber = NewPhone.Trim(),
+                Sector = NewSector
+            };
+            Db.Volunteers.Add(vol);
+            await Db.SaveChangesAsync();
+            AddSuccess = true;
+            AddMessage = "تم إضافة المتطوع.";
+            NewName = "";
+            NewPhone = "";
+            await LoadVolunteerList();
         }
-
-        var vol = new Volunteer
+        catch (Exception ex)
         {
-            FullName = NewName.Trim(),
-            PhoneNumber = NewPhone.Trim(),
-            Sector = NewSector
-        };
-        Db.Volunteers.Add(vol);
-        await Db.SaveChangesAsync();
-        AddSuccess = true;
-        AddMessage = "تم إضافة المتطوع.";
-        NewName = "";
-        NewPhone = "";
-        await LoadVolunteerList();
-        IsAdding = false;
+            AddMessage = $"خطأ: {ex.Message}";
+            AddSuccess = false;
+        }
+        finally
+        {
+            IsAdding = false;
+        }
     }
 }

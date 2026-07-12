@@ -187,7 +187,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadCitizenData();
+        try
+        {
+            await LoadCitizenData();
+        }
+        catch (Exception ex)
+        {
+            CitizenName = $"خطأ في تحميل البيانات: {ex.Message}";
+        }
     }
 
     private async Task LoadCitizenData()
@@ -328,26 +335,37 @@
         }
     }
 
+    private HashSet<int> ProcessingAttendance { get; set; } = [];
+
     private async Task ConfirmAttendance(int distributionPlanId)
     {
-        var registration = await Db.DistributionRegistrations
-            .Where(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == distributionPlanId)
-            .FirstOrDefaultAsync();
+        if (!ProcessingAttendance.Add(distributionPlanId)) return;
+        try
+        {
+            var registration = await Db.DistributionRegistrations
+                .Where(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == distributionPlanId)
+                .FirstOrDefaultAsync();
 
-        if (registration is null)
-        {
-            AttendanceMessage = "سجل أولاً في هذه الخطة، وبعدها يمكنك تأكيد الحضور.";
-            return;
-        }
-        else
-        {
+            if (registration is null)
+            {
+                AttendanceMessage = "سجل أولاً في هذه الخطة، وبعدها يمكنك تأكيد الحضور.";
+                return;
+            }
+
             registration.Status = RegistrationStatus.AttendanceConfirmed;
             registration.AttendanceConfirmedAt = DateTimeOffset.UtcNow;
+            await Db.SaveChangesAsync();
+            AttendanceMessage = "تم تأكيد حضورك وحجز دورك في هذا التوزيع.";
+            await LoadCitizenData();
         }
-
-        await Db.SaveChangesAsync();
-        AttendanceMessage = "تم تأكيد حضورك وحجز دورك في هذا التوزيع.";
-        await LoadCitizenData();
+        catch (Exception ex)
+        {
+            AttendanceMessage = $"خطأ: {ex.Message}";
+        }
+        finally
+        {
+            ProcessingAttendance.Remove(distributionPlanId);
+        }
     }
 
     private static string ToArabicAidType(AidKind aidType) => aidType switch

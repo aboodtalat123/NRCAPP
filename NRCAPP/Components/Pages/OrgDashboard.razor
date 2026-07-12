@@ -220,13 +220,20 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!ResolveOrganizationFromSession())
+        try
         {
-            Navigation.NavigateTo("/");
-            return;
-        }
+            if (!ResolveOrganizationFromSession())
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
 
-        await RefreshData();
+            await RefreshData();
+        }
+        catch (Exception ex)
+        {
+            OrganizationName = $"خطأ في تحميل البيانات: {ex.Message}";
+        }
     }
 
     private bool ResolveOrganizationFromSession()
@@ -252,46 +259,61 @@
 
     private async Task SubmitPlan()
     {
-        if (!DateTimeOffset.TryParse(ScheduledDateText, out var scheduledDate))
+        try
+        {
+            if (!DateTimeOffset.TryParse(ScheduledDateText, out var scheduledDate))
+            {
+                PlanAccepted = false;
+                ResultMessage = "وقت التوزيع غير صالح.";
+                return;
+            }
+
+            var result = await ConflictDetection.SubmitPlanAsync(new DistributionPlanRequest(
+                SelectedAidType,
+                scheduledDate,
+                31.501m,
+                34.466m,
+                TargetSector,
+                Quantity,
+                OrgId,
+                MaxCapacity));
+
+            PlanAccepted = result.Accepted;
+            ResultMessage = result.Accepted
+                ? $"تم حفظ واعتماد الخطة رقم {result.PlanId}."
+                : result.Message;
+
+            await RefreshData();
+        }
+        catch (Exception ex)
         {
             PlanAccepted = false;
-            ResultMessage = "وقت التوزيع غير صالح.";
-            return;
+            ResultMessage = $"خطأ: {ex.Message}";
         }
-
-        var result = await ConflictDetection.SubmitPlanAsync(new DistributionPlanRequest(
-            SelectedAidType,
-            scheduledDate,
-            31.501m,
-            34.466m,
-            TargetSector,
-            Quantity,
-            OrgId,
-            MaxCapacity));
-
-        PlanAccepted = result.Accepted;
-        ResultMessage = result.Accepted
-            ? $"تم حفظ واعتماد الخطة رقم {result.PlanId}."
-            : result.Message;
-
-        await RefreshData();
     }
 
     private async Task ConfirmDelivery(int registrationId)
     {
-        var registration = await Db.DistributionRegistrations
-            .Include(x => x.DistributionPlan)
-            .SingleOrDefaultAsync(x => x.Id == registrationId && x.DistributionPlan!.OrganizationId == OrgId);
-
-        if (registration is null || registration.Status != RegistrationStatus.AttendanceConfirmed)
+        try
         {
-            return;
-        }
+            var registration = await Db.DistributionRegistrations
+                .Include(x => x.DistributionPlan)
+                .SingleOrDefaultAsync(x => x.Id == registrationId && x.DistributionPlan!.OrganizationId == OrgId);
 
-        registration.Status = RegistrationStatus.Delivered;
-        registration.DeliveredAt = DateTimeOffset.UtcNow;
-        await Db.SaveChangesAsync();
-        await RefreshData();
+            if (registration is null || registration.Status != RegistrationStatus.AttendanceConfirmed)
+            {
+                return;
+            }
+
+            registration.Status = RegistrationStatus.Delivered;
+            registration.DeliveredAt = DateTimeOffset.UtcNow;
+            await Db.SaveChangesAsync();
+            await RefreshData();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[ConfirmDelivery] {ex.Message}");
+        }
     }
 
     private async Task RefreshData()
