@@ -292,6 +292,17 @@
             return;
         }
 
+        var hasActive = await Db.DistributionRegistrations
+            .AnyAsync(x => x.BeneficiaryId == BeneficiaryId
+                && x.Status != RegistrationStatus.Delivered
+                && x.Status != RegistrationStatus.Rejected);
+
+        if (hasActive)
+        {
+            EnrollmentMessage = "لديك تسجيل نشط بالفعل. لا يمكنك التسجيل في خطة أخرى قبل استلام المساعدة الأولى.";
+            return;
+        }
+
         var exists = await Db.DistributionRegistrations
             .AnyAsync(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == plan.Id);
 
