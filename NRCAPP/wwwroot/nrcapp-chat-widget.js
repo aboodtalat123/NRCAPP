@@ -167,6 +167,23 @@
     color: #991B1B;
 }
 
+.nrcapp-escalate-button {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #DC2626, #991B1B);
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+    transition: opacity 0.2s;
+}
+.nrcapp-escalate-button:hover {
+    opacity: 0.9;
+}
+
 .nrcapp-chat-input-area {
     display: flex;
     gap: 8px;
@@ -358,6 +375,15 @@ body.nrcapp-chat-open #blazor-error-ui {
         .then(function (data) {
             hideTyping();
             addMessage(data.answer, 'bot', data.sources || []);
+            if (data.needs_human && data.support_contact) {
+                var btn = document.createElement('a');
+                btn.href = data.support_contact.value;
+                btn.target = '_blank';
+                btn.textContent = 'تواصل مع فريق الدعم';
+                btn.className = 'nrcapp-escalate-button';
+                messages.appendChild(btn);
+                messages.scrollTop = messages.scrollHeight;
+            }
         })
         .catch(function (err) {
             hideTyping();
