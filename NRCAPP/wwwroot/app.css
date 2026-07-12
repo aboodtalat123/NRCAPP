@@ -812,6 +812,18 @@ h1:focus {
     white-space: nowrap;
 }
 
+.agency-card {
+    flex-wrap: wrap;
+}
+
+.enrollment-feedback {
+    width: 100%;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 4px 0 0;
+    color: var(--grch-teal-dark);
+}
+
 .empty-state {
     margin: 0;
     padding: 14px;

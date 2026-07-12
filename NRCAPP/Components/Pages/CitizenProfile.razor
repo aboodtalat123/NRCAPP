@@ -26,12 +26,20 @@
             <div class="agency-list">
                 @foreach (var agency in ActiveAgencies)
                 {
+                    var isProcessing = ProcessingOrgs.Contains(agency.OrganizationId);
                     <div class="agency-card">
                         <div>
                             <b>@agency.OrganizationName</b>
                             <span>@agency.ActivePlans خطة نشطة - أقرب مساعدة: @ToArabicAidType(agency.NextAidType)</span>
                         </div>
-                        <button type="button" @onclick="() => RequestEnrollment(agency.OrganizationId)">طلب تسجيل</button>
+                        <button type="button" disabled="@isProcessing"
+                                @onclick="() => RequestEnrollment(agency.OrganizationId)">
+                            @(isProcessing ? "جاري..." : "طلب تسجيل")
+                        </button>
+                        @if (EnrollmentMessages.TryGetValue(agency.OrganizationId, out var msg))
+                        {
+                            <div class="enrollment-feedback">@msg</div>
+                        }
                     </div>
                 }
                 @if (ActiveAgencies.Count == 0)
@@ -39,11 +47,6 @@
                     <p class="empty-state">لا توجد مؤسسة نشطة في هذا القطاع حالياً.</p>
                 }
             </div>
-
-            @if (!string.IsNullOrWhiteSpace(EnrollmentMessage))
-            {
-                <div class="result-box success">@EnrollmentMessage</div>
-            }
         </article>
 
         <article class="form-panel">
@@ -178,7 +181,8 @@
     private List<RegistrationView> RegisteredAid { get; set; } = [];
     private List<ScheduleView> LocalSchedule { get; set; } = [];
     private List<UpcomingDistributionView> AllUpcomingDistributions { get; set; } = [];
-    private string? EnrollmentMessage { get; set; }
+    private Dictionary<int, string> EnrollmentMessages { get; set; } = [];
+    private HashSet<int> ProcessingOrgs { get; set; } = [];
     private string? AttendanceMessage { get; set; }
 
     protected override async Task OnInitializedAsync()
@@ -279,6 +283,7 @@
 
     private async Task RequestEnrollment(int organizationId)
     {
+        if (!ProcessingOrgs.Add(organizationId)) return;
         try
         {
             var plan = await Db.DistributionPlans
@@ -290,7 +295,7 @@
 
             if (plan is null)
             {
-                EnrollmentMessage = "لا توجد خطة نشطة لهذه المؤسسة في قطاعك حالياً.";
+                EnrollmentMessages[organizationId] = "لا توجد خطة نشطة لهذه المؤسسة في قطاعك حالياً.";
                 return;
             }
 
@@ -308,14 +313,18 @@
                 await Db.SaveChangesAsync();
             }
 
-            EnrollmentMessage = exists
-                ? "أنت مسجل مسبقاً في كشف هذه الخطة."
-                : "تم إرسال طلب التسجيل إلى المؤسسة.";
+            EnrollmentMessages[organizationId] = exists
+                ? "أنت مسجل مسبقاً."
+                : "تم إرسال طلب التسجيل.";
             await LoadCitizenData();
         }
         catch (Exception ex)
         {
-            EnrollmentMessage = $"حدث خطأ: {ex.Message}";
+            EnrollmentMessages[organizationId] = $"خطأ: {ex.Message}";
+        }
+        finally
+        {
+            ProcessingOrgs.Remove(organizationId);
         }
     }
 
