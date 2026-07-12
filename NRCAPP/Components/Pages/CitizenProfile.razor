@@ -279,37 +279,44 @@
 
     private async Task RequestEnrollment(int organizationId)
     {
-        var plan = await Db.DistributionPlans
-            .Where(x => x.OrganizationId == organizationId)
-            .Where(x => x.TargetSector == EffectiveSector)
-            .Where(x => x.Status == DistributionPlanStatus.Authorized)
-            .OrderBy(x => x.ScheduledDate)
-            .FirstOrDefaultAsync();
-
-        if (plan is null)
+        try
         {
-            EnrollmentMessage = "لا توجد خطة نشطة لهذه المؤسسة في قطاعك حالياً.";
-            return;
-        }
+            var plan = await Db.DistributionPlans
+                .Where(x => x.OrganizationId == organizationId)
+                .Where(x => x.TargetSector == EffectiveSector)
+                .Where(x => x.Status == DistributionPlanStatus.Authorized)
+                .OrderBy(x => x.ScheduledDate)
+                .FirstOrDefaultAsync();
 
-        var exists = await Db.DistributionRegistrations
-            .AnyAsync(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == plan.Id);
-
-        if (!exists)
-        {
-            Db.DistributionRegistrations.Add(new DistributionRegistration
+            if (plan is null)
             {
-                BeneficiaryId = BeneficiaryId,
-                DistributionPlanId = plan.Id,
-                Status = RegistrationStatus.Requested
-            });
-            await Db.SaveChangesAsync();
-        }
+                EnrollmentMessage = "لا توجد خطة نشطة لهذه المؤسسة في قطاعك حالياً.";
+                return;
+            }
 
-        EnrollmentMessage = exists
-            ? "أنت مسجل مسبقاً في كشف هذه الخطة."
-            : "تم إرسال طلب التسجيل إلى المؤسسة.";
-        await LoadCitizenData();
+            var exists = await Db.DistributionRegistrations
+                .AnyAsync(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == plan.Id);
+
+            if (!exists)
+            {
+                Db.DistributionRegistrations.Add(new DistributionRegistration
+                {
+                    BeneficiaryId = BeneficiaryId,
+                    DistributionPlanId = plan.Id,
+                    Status = RegistrationStatus.Requested
+                });
+                await Db.SaveChangesAsync();
+            }
+
+            EnrollmentMessage = exists
+                ? "أنت مسجل مسبقاً في كشف هذه الخطة."
+                : "تم إرسال طلب التسجيل إلى المؤسسة.";
+            await LoadCitizenData();
+        }
+        catch (Exception ex)
+        {
+            EnrollmentMessage = $"حدث خطأ: {ex.Message}";
+        }
     }
 
     private async Task ConfirmAttendance(int distributionPlanId)
