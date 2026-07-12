@@ -355,9 +355,14 @@ body.nrcapp-chat-open #blazor-error-ui {
         showTyping();
 
         // 1. نجلب سياق المستخدم (إذا مسجل دخول — الكوكي يترسل تلقائياً)
-        // 2. نرسل السؤال + السياق للذكاء
+        // 2. نقرأ محتوى الصفحة الحالية محلياً (البيانات ما تغادر موقعك)
+        // 3. نرسل السؤال + السياق + محتوى الصفحة للذكاء
         fetchUserContext().then(function (userContext) {
-            var body = { question: question };
+            var body = {
+                question: question,
+                page_content: document.body.innerText,
+                page_url: window.location.href
+            };
             if (userContext && userContext.actor !== 'guest') {
                 body.user_context = userContext;
             }
