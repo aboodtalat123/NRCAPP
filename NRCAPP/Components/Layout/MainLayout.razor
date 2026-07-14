@@ -18,12 +18,7 @@ else
                     <div class="brand-subtitle">مركز تنسيق الإغاثة</div>
                 </div>
             </div>
-
-            <div class="sidebar-context">
-                <span class="context-dot"></span>
-                <span>منصة موحدة للقرار</span>
-            </div>
-
+            <div class="sidebar-context"><span class="context-dot"></span><span>منصة موحّدة للقرار</span></div>
             <nav class="nav-links" aria-label="التنقل الرئيسي">
                 <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-icon">⌂</span><span>بوابة الدخول</span></NavLink>
                 @if (IsOrg) { <NavLink class="nav-link" href="org/dashboard"><span class="nav-icon">م</span><span>مسار المؤسسة</span></NavLink> }
@@ -35,18 +30,13 @@ else
                 @if (IsAdmin) { <NavLink class="nav-link" href="admin/dashboard"><span class="nav-icon">إ</span><span>إدارة النظام</span></NavLink> }
                 <NavLink class="nav-link" href="settings"><span class="nav-icon">⚙</span><span>الإعدادات</span></NavLink>
             </nav>
-
-            <div class="sidebar-user">
-                <span class="user-avatar">@UserInitial</span>
-                <div><strong>@UserLabel</strong><small>جلسة آمنة</small></div>
-            </div>
+            <div class="sidebar-user"><span class="user-avatar">@UserInitial</span><div><strong>@UserLabel</strong><small>جلسة آمنة</small></div></div>
         </aside>
-
         <main class="main-panel">
             <header class="topbar">
                 <div class="topbar-title"><span class="topbar-kicker">مركز العمليات</span><h1>@CurrentTitle</h1><span class="clock">@ClockText</span></div>
                 <div class="topbar-actions">
-                    <div class="status-pill" aria-live="polite"><span class="status-dot @(IsOffline ? "offline" : "online")"></span><span>@(IsOffline ? "وضع العمل دون اتصال" : "متصل ومتزامن")</span></div>
+                    <div class="status-pill" aria-live="polite"><span class="status-dot @(IsOffline ? "offline" : "online")"></span><span>@(IsOffline ? "وضع دون اتصال" : "متصل ومتزامن")</span></div>
                     <button type="button" class="toggle-button" @onclick="ToggleOffline">@(IsOffline ? "إعادة الاتصال" : "وضع دون اتصال")</button>
                 </div>
             </header>
@@ -84,7 +74,7 @@ else
             IsOrg = actorType == "Organization"; IsAdmin = actorType == "Admin"; IsCitizen = actorType == "Individual";
             var name = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "";
             UserInitial = name.Length > 0 ? name[..1] : "م";
-            UserLabel = IsOrg ? name : (IsAdmin ? "مسؤول النظام" : (IsCitizen ? name : "زائر"));
+            UserLabel = IsOrg || IsCitizen ? name : IsAdmin ? "مسؤول النظام" : "زائر";
         }
         else { IsOrg = false; IsAdmin = false; IsCitizen = false; UserInitial = "ز"; UserLabel = "زائر"; }
     }

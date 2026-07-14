@@ -914,3 +914,49 @@ body { background: radial-gradient(circle at 8% 0%, rgba(14,124,114,.10), transp
 .gateway-card button span { margin-right: 8px; }
 @media (max-width: 900px) { .sidebar { width: 100%; min-width: 0; } .role-cards { grid-template-columns: 1fr; } .role-card { min-height: auto; } .topbar, .content { padding-inline: 20px; } }
 @media (max-width: 560px) { .entry-gateway { width: min(100% - 28px, 1180px); padding-top: 24px; } .entry-panel { margin-top: 24px; border-radius: 22px; padding: 22px 16px; } .entry-copy h1 { font-size: 39px; letter-spacing: -1px; } .register-links { flex-wrap: wrap; } }
+
+/* Smooth operational screens: clear hierarchy, generous breathing room, and strong actions. */
+.content { background: radial-gradient(circle at 92% 0%, rgba(239,184,77,.10), transparent 25rem); }
+.role-page, .feature-page { max-width: 1380px; margin: 0 auto; }
+.role-header, .volunteer-hero { min-height: 168px; border-radius: 24px; padding: 30px 34px; }
+.citizen-profile-hero { background: linear-gradient(135deg, #155e75 0%, #0e7c72 58%, #176f65 100%); }
+.volunteer-hero { background: linear-gradient(135deg, #173f3b 0%, #0e7c72 68%, #d59b33 170%); }
+.hero-stat { min-width: 130px; padding: 16px 20px; border: 1px solid rgba(255,255,255,.18); border-radius: 18px; background: rgba(255,255,255,.11); text-align: center; }
+.hero-stat strong, .hero-stat span { display: block; }
+.hero-stat strong { color: #fff; font-size: 32px; line-height: 1; }
+.hero-stat span { margin-top: 7px; color: #d8eee8; font-size: 11px; font-weight: 800; }
+.profile-chip { display: grid; gap: 4px; min-width: 150px; padding: 13px 17px; border: 1px solid rgba(255,255,255,.2); border-radius: 16px; background: rgba(255,255,255,.1); }
+.profile-chip span { color: #cce5df; font-size: 10px; font-weight: 800; }
+.profile-chip strong { color: #fff; font-size: 15px; direction: ltr; }
+.citizen-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 18px 0; }
+.summary-card { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid rgba(14,124,114,.12); border-radius: 18px; background: rgba(255,255,255,.82); box-shadow: 0 10px 25px rgba(13,52,45,.05); }
+.summary-card small, .summary-card strong { display: block; }
+.summary-card small { color: var(--grch-muted); font-size: 11px; font-weight: 800; }
+.summary-card strong { margin-top: 4px; color: var(--grch-teal-dark); font-size: 18px; }
+.summary-icon, .section-mark { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 13px; background: #d9f0e8; color: #116657; font-weight: 950; }
+.summary-icon.gold { background: #fff0cf; color: #9a6911; }
+.summary-icon.blue { background: #e3effd; color: #2563a7; }
+.citizen-card, .volunteer-form-panel, .volunteer-list-panel { border-radius: 20px; box-shadow: 0 12px 30px rgba(13,52,45,.06); }
+.panel-title { display: flex; gap: 12px; align-items: flex-start; }
+.panel-title h3 { margin: 3px 0 6px; color: var(--grch-teal-dark); font-size: 18px; }
+.panel-title p { margin: 0; color: var(--grch-muted); font-size: 12px; line-height: 1.8; font-weight: 700; }
+.panel-kicker { color: var(--grch-teal); font-size: 10px; font-weight: 950; }
+.section-mark { background: linear-gradient(145deg, #e4f4ee, #c8e8dc); }
+.agency-card { padding: 15px; border: 1px solid rgba(14,124,114,.09); border-radius: 16px; background: linear-gradient(135deg, #f3fbf8, #eef7f7); }
+.agency-copy { flex: 1; }
+.agency-action { display: inline-flex !important; align-items: center; justify-content: center; gap: 8px; min-width: 136px; border-radius: 11px !important; }
+.agency-action b { font-size: 16px; }
+.agency-action:disabled, .primary-action:disabled { cursor: wait; opacity: .72; }
+.success-text { color: #16885f; }
+.status-label { padding: 6px 10px; border-radius: 999px; background: #e7f5ee; color: #18734f !important; }
+.page-message { margin: 16px 0 0; }
+.volunteer-layout { align-items: start; margin-top: 18px; }
+.volunteer-form-panel { position: sticky; top: 18px; }
+.volunteer-form { padding: 0; }
+.primary-action { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.button-arrow { font-size: 17px; transition: transform .2s ease; }
+.primary-action:hover .button-arrow, .agency-action:hover b { transform: translateX(-3px); }
+.volunteer-name { color: var(--grch-teal-dark); font-weight: 950; }
+.volunteer-table .table-row { min-height: 52px; }
+@media (max-width: 980px) { .citizen-summary-grid { grid-template-columns: 1fr; } .volunteer-form-panel { position: static; } }
+@media (max-width: 640px) { .role-header, .volunteer-hero { padding: 23px 20px; } .profile-chip, .hero-stat { min-width: 0; width: 100%; } .role-header { gap: 16px; } .agency-card { display: grid; } .agency-action { width: 100% !important; margin-top: 8px !important; } }

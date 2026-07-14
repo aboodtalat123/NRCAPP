@@ -1,75 +1,41 @@
 @page "/volunteers"
+@rendermode InteractiveServer
 @inject ReliefDbContext Db
 
 <PageTitle>نقطة - المتطوعون</PageTitle>
 
 <section class="feature-page volunteers-page" dir="rtl">
-    <div class="role-header">
-        <div>
-            <span class="eyebrow">المتطوعون</span>
-            <h2>إدارة المتطوعين</h2>
-            <p>إضافة متطوعين جدد ومتابعة تأكيدات التسليم.</p>
-        </div>
+    <div class="role-header volunteer-hero">
+        <div><span class="eyebrow">فريق التنفيذ</span><h2>إدارة المتطوعين بسهولة</h2><p>أضف أعضاء الفريق، وزّعهم حسب القطاع، وتابع جاهزيتهم من شاشة واحدة.</p></div>
+        <div class="hero-stat"><strong>@VolunteerList.Count</strong><span>متطوع مسجل</span></div>
     </div>
 
-    <section class="admin-content-grid">
-        <article class="admin-panel">
-            <div class="admin-panel-title">
-                <h2>إضافة متطوع جديد</h2>
-            </div>
-            <div class="gateway-card" style="max-width:100%">
+    <section class="admin-content-grid volunteer-layout">
+        <article class="admin-panel volunteer-form-panel">
+            <div class="admin-panel-title"><span class="panel-kicker">إضافة سريعة</span><h2>إضافة متطوع جديد</h2><p>أدخل البيانات الأساسية ثم اضغط حفظ.</p></div>
+            <div class="gateway-card volunteer-form">
                 <label for="vol-name">الاسم الكامل</label>
-                <input id="vol-name" @bind="NewName" placeholder="اسم المتطوع" />
+                <input id="vol-name" @bind="NewName" placeholder="مثال: أحمد محمد" autocomplete="name" />
                 <label for="vol-phone">رقم الهاتف</label>
-                <input id="vol-phone" @bind="NewPhone" placeholder="رقم الهاتف" />
+                <input id="vol-phone" @bind="NewPhone" placeholder="05XXXXXXXX" inputmode="tel" autocomplete="tel" />
                 <label for="vol-sector">القطاع</label>
-                <select id="vol-sector" @bind="NewSector">
-                    @foreach (var s in Sectors)
-                    {
-                        <option value="@s">@s</option>
-                    }
-                </select>
-                <button type="button" @onclick="AddVolunteer" disabled="@IsAdding">
-                    @(IsAdding ? "جاري الحفظ..." : "إضافة متطوع")
+                <select id="vol-sector" @bind="NewSector">@foreach (var sector in Sectors) { <option value="@sector">@sector</option> }</select>
+                <button type="button" class="primary-action" @onclick="AddVolunteer" disabled="@IsAdding">
+                    <span class="button-label">@(IsAdding ? "جارٍ الحفظ..." : "حفظ المتطوع")</span><span class="button-arrow">←</span>
                 </button>
-                @if (!string.IsNullOrEmpty(AddMessage))
-                {
-                    <div class="result-box @(AddSuccess ? "success" : "warning")">@AddMessage</div>
-                }
+                @if (!string.IsNullOrWhiteSpace(AddMessage)) { <div class="result-box @(AddSuccess ? "success" : "warning")" role="status">@AddMessage</div> }
             </div>
         </article>
 
-        <article class="admin-panel">
-            <div class="admin-panel-title">
-                <h2>قائمة المتطوعين</h2>
-                <p>جميع المتطوعين المسجلين في النظام.</p>
-            </div>
-            <div class="plans-table">
-                <div class="table-head">
-                    <span>الاسم</span>
-                    <span>الهاتف</span>
-                    <span>القطاع</span>
-                    <span>الحالة</span>
-                    <span>تاريخ الانضمام</span>
-                </div>
-                @foreach (var v in VolunteerList)
+        <article class="admin-panel volunteer-list-panel">
+            <div class="admin-panel-title"><span class="panel-kicker">سجل الفريق</span><h2>المتطوعون المسجلون</h2><p>آخر الإضافات تظهر في أعلى القائمة.</p></div>
+            <div class="plans-table volunteer-table">
+                <div class="table-head"><span>الاسم</span><span>الهاتف</span><span>القطاع</span><span>الحالة</span><span>تاريخ الانضمام</span></div>
+                @foreach (var volunteer in VolunteerList)
                 {
-                    <div class="table-row">
-                        <span>@v.FullName</span>
-                        <span>@v.PhoneNumber</span>
-                        <span>@v.Sector</span>
-                        <span>
-                            <span class="pill @(v.IsActive ? "pill-active" : "pill-pending")">
-                                @(v.IsActive ? "نشط" : "غير نشط")
-                            </span>
-                        </span>
-                        <span>@v.JoinedAt.ToLocalTime().ToString("MM/dd HH:mm")</span>
-                    </div>
+                    <div class="table-row"><span class="volunteer-name">@volunteer.FullName</span><span>@volunteer.PhoneNumber</span><span>@volunteer.Sector</span><span><span class="pill @(volunteer.IsActive ? "pill-active" : "pill-pending")">@(volunteer.IsActive ? "نشط" : "غير نشط")</span></span><span>@volunteer.JoinedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span></div>
                 }
-                @if (VolunteerList.Count == 0)
-                {
-                    <p class="empty-state">لا يوجد متطوعون مسجلون بعد.</p>
-                }
+                @if (VolunteerList.Count == 0) { <p class="empty-state">لا يوجد متطوعون مسجلون بعد.</p> }
             </div>
         </article>
     </section>
@@ -85,60 +51,27 @@
     private List<Volunteer> VolunteerList { get; set; } = [];
     private string[] Sectors { get; } = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
 
-    protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            await LoadVolunteerList();
-        }
-        catch (Exception ex)
-        {
-            AddMessage = $"خطأ في تحميل قائمة المتطوعين: {ex.Message}";
-        }
-    }
+    protected override async Task OnInitializedAsync() { await LoadVolunteerList(); }
 
     private async Task LoadVolunteerList()
     {
-        VolunteerList = await Db.Volunteers
-            .AsNoTracking()
-            .OrderByDescending(x => x.JoinedAt)
-            .ToListAsync();
+        VolunteerList = await Db.Volunteers.AsNoTracking().OrderByDescending(x => x.JoinedAt).ToListAsync();
     }
 
     private async Task AddVolunteer()
     {
-        AddMessage = "";
+        if (IsAdding) return;
+        AddMessage = ""; AddSuccess = false;
+        if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewPhone)) { AddMessage = "اكتب اسم المتطوع ورقم الهاتف أولاً."; return; }
         IsAdding = true;
         try
         {
-            if (string.IsNullOrWhiteSpace(NewName) || string.IsNullOrWhiteSpace(NewPhone))
-            {
-                AddMessage = "يرجى تعبئة اسم المتطوع ورقم الهاتف.";
-                return;
-            }
-
-            var vol = new Volunteer
-            {
-                FullName = NewName.Trim(),
-                PhoneNumber = NewPhone.Trim(),
-                Sector = NewSector
-            };
-            Db.Volunteers.Add(vol);
+            Db.Volunteers.Add(new Volunteer { FullName = NewName.Trim(), PhoneNumber = NewPhone.Trim(), Sector = NewSector });
             await Db.SaveChangesAsync();
-            AddSuccess = true;
-            AddMessage = "تم إضافة المتطوع.";
-            NewName = "";
-            NewPhone = "";
+            NewName = ""; NewPhone = ""; AddSuccess = true; AddMessage = "تمت إضافة المتطوع بنجاح.";
             await LoadVolunteerList();
         }
-        catch (Exception ex)
-        {
-            AddMessage = $"خطأ: {ex.Message}";
-            AddSuccess = false;
-        }
-        finally
-        {
-            IsAdding = false;
-        }
+        catch (Exception ex) { AddMessage = $"تعذر الحفظ: {ex.Message}"; }
+        finally { IsAdding = false; }
     }
 }
