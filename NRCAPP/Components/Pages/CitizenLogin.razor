@@ -2,56 +2,5 @@
 @layout MainLayout
 
 <PageTitle>نقطة - دخول مواطن</PageTitle>
-
-<section class="entry-gateway" dir="rtl">
-    <div class="entry-brand">
-        <span>ن</span>
-        <div>
-            <strong>نقطة</strong>
-            <small>مركز تنسيق الإغاثة</small>
-        </div>
-    </div>
-
-    <section class="entry-panel">
-        <div class="panel-title">
-            <h1>دخول مواطن</h1>
-            <p>أدخل رقم الهوية المسجل لعرض التوزيعات في منطقتك وباقي المناطق.</p>
-        </div>
-
-        <div class="gateway-card">
-            <form method="post" action="/auth/citizen/form-login">
-                <label for="citizen-login-national">رقم الهوية الوطنية</label>
-                <input id="citizen-login-national" name="nationalId" placeholder="رقم الهوية" required />
-
-                <label for="citizen-login-sector">القطاع الحالي</label>
-                <select id="citizen-login-sector" name="sector">
-                    <option value="الرمال">الرمال</option>
-                    <option value="جباليا">جباليا</option>
-                    <option value="خان يونس">خان يونس</option>
-                    <option value="دير البلح">دير البلح</option>
-                    <option value="رفح">رفح</option>
-                </select>
-
-                <button type="submit">فتح ملف المواطن</button>
-            </form>
-
-            @if (ShowError)
-            {
-                <div class="result-box warning">رقم الهوية غير موجود أو الحساب غير مفعل.</div>
-            }
-
-            <p class="auth-switch">
-                ليس لديك حساب؟
-                <a href="/citizen/register">إنشاء حساب مواطن</a>
-            </p>
-            <p class="auth-switch"><a href="/">العودة إلى بوابة الدخول</a></p>
-        </div>
-    </section>
-</section>
-
-@code {
-    [SupplyParameterFromQuery(Name = "error")]
-    private string? Error { get; set; }
-
-    private bool ShowError => Error == "failed";
-}
+<section class="entry-gateway auth-entry" dir="rtl"><div class="entry-brand"><span>ن</span><div><strong>نقطة</strong><small>مركز تنسيق الإغاثة</small></div></div><section class="entry-panel auth-panel"><div class="panel-title"><span class="eyebrow">مسار المواطن</span><h1>مرحباً بعودتك</h1><p>أدخل رقم هويتك ومنطقتك لعرض التوزيعات المتاحة ومتابعة طلباتك.</p></div><div class="gateway-card"><form method="post" action="/auth/citizen/form-login"><label for="citizen-login-national">رقم الهوية الوطنية</label><input id="citizen-login-national" name="nationalId" placeholder="أدخل رقم الهوية" required /><label for="citizen-login-sector">المنطقة الحالية</label><select id="citizen-login-sector" name="sector"><option value="الرمال">الرمال</option><option value="جباليا">جباليا</option><option value="خان يونس">خان يونس</option><option value="دير البلح">دير البلح</option><option value="رفح">رفح</option></select>@if (ShowError) { <div class="result-box warning">رقم الهوية غير موجود أو الحساب غير مفعّل.</div> }<button type="submit">فتح ملف المواطن <span>←</span></button></form><p class="auth-switch">ليس لديك حساب؟ <a href="/citizen/register">أنشئ حساب مواطن</a></p><p class="auth-switch"><a href="/">العودة إلى بوابة الدخول</a></p></div></section></section>
+@code { [SupplyParameterFromQuery(Name = "error")] private string? Error { get; set; } private bool ShowError => Error == "failed"; }

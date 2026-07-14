@@ -5,9 +5,7 @@
 
 @if (IsEntryPage)
 {
-    <main class="entry-main" dir="rtl">
-        @Body
-    </main>
+    <main class="entry-main" dir="rtl">@Body</main>
 }
 else
 {
@@ -21,131 +19,60 @@ else
                 </div>
             </div>
 
+            <div class="sidebar-context">
+                <span class="context-dot"></span>
+                <span>منصة موحدة للقرار</span>
+            </div>
+
             <nav class="nav-links" aria-label="التنقل الرئيسي">
-                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                    <span class="nav-icon">⌂</span>
-                    بوابة الدخول
-                </NavLink>
-
-                @if (IsOrg)
-                {
-                    <NavLink class="nav-link" href="org/dashboard">
-                        <span class="nav-icon">م</span>
-                        مسار المؤسسة
-                    </NavLink>
-                }
-
-                @if (IsCitizen)
-                {
-                    <NavLink class="nav-link" href="citizen/profile">
-                        <span class="nav-icon">و</span>
-                        ملف المواطن
-                    </NavLink>
-                }
-
-                <NavLink class="nav-link" href="aid-distribution">
-                    <span class="nav-icon">✓</span>
-                    الجدولة والتوزيع
-                </NavLink>
-
-                <NavLink class="nav-link" href="gap-detector">
-                    <span class="nav-icon">!</span>
-                    كشف الفجوات
-                </NavLink>
-
-                <NavLink class="nav-link" href="analytics">
-                    <span class="nav-icon">▦</span>
-                    التحليلات
-                </NavLink>
-
-                <NavLink class="nav-link" href="volunteers">
-                    <span class="nav-icon">●</span>
-                    المتطوعون
-                </NavLink>
-
-                @if (IsAdmin)
-                {
-                    <NavLink class="nav-link" href="admin/dashboard">
-                        <span class="nav-icon">إ</span>
-                        مسؤول البرنامج
-                    </NavLink>
-                }
-
-                <NavLink class="nav-link" href="settings">
-                    <span class="nav-icon">⚙</span>
-                    الإعدادات
-                </NavLink>
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All"><span class="nav-icon">⌂</span><span>بوابة الدخول</span></NavLink>
+                @if (IsOrg) { <NavLink class="nav-link" href="org/dashboard"><span class="nav-icon">م</span><span>مسار المؤسسة</span></NavLink> }
+                @if (IsCitizen) { <NavLink class="nav-link" href="citizen/profile"><span class="nav-icon">و</span><span>ملف المواطن</span></NavLink> }
+                <NavLink class="nav-link" href="aid-distribution"><span class="nav-icon">✓</span><span>الجدولة والتوزيع</span></NavLink>
+                <NavLink class="nav-link" href="gap-detector"><span class="nav-icon">!</span><span>كشف الفجوات</span></NavLink>
+                <NavLink class="nav-link" href="analytics"><span class="nav-icon">▦</span><span>التحليلات</span></NavLink>
+                <NavLink class="nav-link" href="volunteers"><span class="nav-icon">●</span><span>المتطوعون</span></NavLink>
+                @if (IsAdmin) { <NavLink class="nav-link" href="admin/dashboard"><span class="nav-icon">إ</span><span>إدارة النظام</span></NavLink> }
+                <NavLink class="nav-link" href="settings"><span class="nav-icon">⚙</span><span>الإعدادات</span></NavLink>
             </nav>
 
             <div class="sidebar-user">
                 <span class="user-avatar">@UserInitial</span>
-                <span>@UserLabel</span>
+                <div><strong>@UserLabel</strong><small>جلسة آمنة</small></div>
             </div>
         </aside>
 
         <main class="main-panel">
             <header class="topbar">
-                <div class="topbar-title">
-                    <h1>@CurrentTitle</h1>
-                    <span class="clock">@ClockText</span>
-                </div>
-
+                <div class="topbar-title"><span class="topbar-kicker">مركز العمليات</span><h1>@CurrentTitle</h1><span class="clock">@ClockText</span></div>
                 <div class="topbar-actions">
-                    <div class="status-pill" aria-live="polite">
-                        <span class="status-dot @(IsOffline ? "offline" : "online")"></span>
-                        <span>@(IsOffline ? "غير متصل - حفظ محلي للبيانات" : "متصل - تمت المزامنة")</span>
-                    </div>
-                    <button type="button" class="toggle-button" @onclick="ToggleOffline">
-                        وضع الاتصال
-                    </button>
+                    <div class="status-pill" aria-live="polite"><span class="status-dot @(IsOffline ? "offline" : "online")"></span><span>@(IsOffline ? "وضع العمل دون اتصال" : "متصل ومتزامن")</span></div>
+                    <button type="button" class="toggle-button" @onclick="ToggleOffline">@(IsOffline ? "إعادة الاتصال" : "وضع دون اتصال")</button>
                 </div>
             </header>
-
-            @if (IsOffline)
-            {
-                <div class="offline-banner">
-                    وضع عدم الاتصال مفعل. يتم حفظ البلاغات محلياً وسيتم رفعها عند عودة الشبكة.
-                </div>
-            }
-
-            <article class="content">
-                @Body
-            </article>
+            @if (IsOffline) { <div class="offline-banner">الوضع غير المتصل مفعّل. ستُحفظ التحديثات محلياً وتُزامن عند عودة الشبكة.</div> }
+            <article class="content">@Body</article>
         </main>
     </div>
 }
 
-<div id="blazor-error-ui" data-nosnippet>
-    حدث خطأ غير متوقع.
-    <a href="." class="reload">إعادة تحميل</a>
-    <span class="dismiss">x</span>
-</div>
+<div id="blazor-error-ui" data-nosnippet>حدث خطأ غير متوقع. <a href="." class="reload">إعادة تحميل</a><span class="dismiss">×</span></div>
 
 @code {
     private bool IsOffline { get; set; }
-    private string CurrentTitle { get; set; } = "نقطة - بوابة الدخول";
+    private string CurrentTitle { get; set; } = "بوابة الدخول";
     private bool IsEntryPage { get; set; } = true;
     private string ClockText { get; set; } = FormatLocalTime();
     private bool IsOrg { get; set; }
     private bool IsCitizen { get; set; }
     private bool IsAdmin { get; set; }
-    private string UserInitial { get; set; } = "م";
+    private string UserInitial { get; set; } = "ز";
     private string UserLabel { get; set; } = "زائر";
     private readonly CancellationTokenSource clockCancellation = new();
 
     protected override void OnInitialized()
     {
-        try
-        {
-            SetCurrentPage();
-            SetUserContext();
-            Navigation.LocationChanged += HandleLocationChanged;
-            _ = RunClockAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"[Layout] {ex.Message}");
-        }
+        SetCurrentPage(); SetUserContext(); Navigation.LocationChanged += HandleLocationChanged; _ = RunClockAsync();
     }
 
     private void SetUserContext()
@@ -154,93 +81,38 @@ else
         if (user?.Identity?.IsAuthenticated == true)
         {
             var actorType = user.FindFirst("actor_type")?.Value;
-            IsOrg = actorType == "Organization";
-            IsAdmin = actorType == "Admin";
-            IsCitizen = actorType == "Individual";
-
+            IsOrg = actorType == "Organization"; IsAdmin = actorType == "Admin"; IsCitizen = actorType == "Individual";
             var name = user.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "";
             UserInitial = name.Length > 0 ? name[..1] : "م";
             UserLabel = IsOrg ? name : (IsAdmin ? "مسؤول النظام" : (IsCitizen ? name : "زائر"));
         }
-        else
-        {
-            IsOrg = false;
-            IsAdmin = false;
-            IsCitizen = false;
-            UserInitial = "م";
-            UserLabel = "زائر";
-        }
+        else { IsOrg = false; IsAdmin = false; IsCitizen = false; UserInitial = "ز"; UserLabel = "زائر"; }
     }
 
-    private void ToggleOffline()
-    {
-        IsOffline = !IsOffline;
-    }
-
-    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        SetCurrentPage();
-        SetUserContext();
-        InvokeAsync(StateHasChanged);
-    }
+    private void ToggleOffline() => IsOffline = !IsOffline;
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e) { SetCurrentPage(); SetUserContext(); InvokeAsync(StateHasChanged); }
 
     private void SetCurrentPage()
     {
-        var rawPath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
-        var path = rawPath.Trim('/').ToLowerInvariant();
-        IsEntryPage = string.IsNullOrWhiteSpace(path)
-            || path == "admin/login"
-            || path == "org/login"
-            || path == "org/register"
-            || path == "citizen/login"
-            || path == "citizen/register";
-
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/').ToLowerInvariant();
+        IsEntryPage = string.IsNullOrWhiteSpace(path) || path is "admin/login" or "org/login" or "org/register" or "citizen/login" or "citizen/register";
         CurrentTitle = path switch
         {
-            "" => "نقطة - بوابة الدخول",
-            "admin/login" => "نقطة - دخول مسؤول النظام",
-            "org/login" => "نقطة - دخول مؤسسة",
-            "org/register" => "نقطة - إنشاء مؤسسة",
-            "citizen/login" => "نقطة - دخول مواطن",
-            "citizen/register" => "نقطة - إنشاء مواطن",
-            "org/dashboard" => "نقطة - مسار المؤسسة",
-            "admin/dashboard" => "نقطة - مسؤول البرنامج",
-            "citizen/profile" => "نقطة - ملف المواطن",
-            "aid-distribution" => "نقطة - الجدولة والتوزيع",
-            "gap-detector" => "نقطة - كشف الفجوات",
-            "analytics" => "نقطة - التحليلات",
-            "volunteers" => "نقطة - المتطوعون",
-            "settings" => "نقطة - الإعدادات",
-            _ => "نقطة - مركز تنسيق الإغاثة"
+            "" => "بوابة الدخول", "admin/login" => "دخول مسؤول النظام", "org/login" => "دخول مؤسسة", "org/register" => "تسجيل مؤسسة",
+            "citizen/login" => "دخول مواطن", "citizen/register" => "تسجيل مواطن", "org/dashboard" => "مسار المؤسسة",
+            "admin/dashboard" => "إدارة النظام", "citizen/profile" => "ملف المواطن", "aid-distribution" => "الجدولة والتوزيع",
+            "gap-detector" => "كشف الفجوات", "analytics" => "التحليلات", "volunteers" => "المتطوعون", "settings" => "الإعدادات",
+            _ => "مركز تنسيق الإغاثة"
         };
     }
 
     private async Task RunClockAsync()
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        try
-        {
-            while (await timer.WaitForNextTickAsync(clockCancellation.Token))
-            {
-                ClockText = FormatLocalTime();
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        try { while (await timer.WaitForNextTickAsync(clockCancellation.Token)) { ClockText = FormatLocalTime(); await InvokeAsync(StateHasChanged); } }
+        catch (OperationCanceledException) { }
     }
 
-    private static string FormatLocalTime()
-    {
-        var culture = System.Globalization.CultureInfo.GetCultureInfo("ar");
-        return DateTime.Now.ToString("dddd، dd MMMM yyyy، hh:mm:ss tt", culture);
-    }
-
-    public void Dispose()
-    {
-        clockCancellation.Cancel();
-        clockCancellation.Dispose();
-        Navigation.LocationChanged -= HandleLocationChanged;
-    }
+    private static string FormatLocalTime() => DateTime.Now.ToString("dddd، dd MMMM yyyy، hh:mm:ss tt", System.Globalization.CultureInfo.GetCultureInfo("ar"));
+    public void Dispose() { clockCancellation.Cancel(); clockCancellation.Dispose(); Navigation.LocationChanged -= HandleLocationChanged; }
 }
