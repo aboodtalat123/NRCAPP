@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using NRCAPP.Api;
 using NRCAPP.Components;
 using NRCAPP.Data;
@@ -10,6 +11,7 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using FluentValidation;
 using Serilog;
+using System.Threading.RateLimiting;
 
 namespace NRCAPP
 {
@@ -29,9 +31,21 @@ namespace NRCAPP
             builder.Host.UseSerilog();
 
             builder.Services.AddValidatorsFromAssemblyContaining<OrganizationRegistrationValidator>();
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddFixedWindowLimiter("auth", limiter =>
+                {
+                    limiter.PermitLimit = 8;
+                    limiter.Window = TimeSpan.FromMinutes(5);
+                    limiter.QueueLimit = 0;
+                    limiter.AutoReplenishment = true;
+                });
+            });
 
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+            builder.Services.AddCascadingAuthenticationState();
 
             builder.Services
                 .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -41,8 +55,44 @@ namespace NRCAPP
                     options.Cookie.Name = "NRCAPP.Auth";
                     options.SlidingExpiration = true;
                     options.ExpireTimeSpan = TimeSpan.FromHours(8);
+                    options.Events.OnRedirectToLogin = context =>
+                    {
+                        if (context.Request.Path.StartsWithSegments("/api"))
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            return Task.CompletedTask;
+                        }
+
+                        var loginPath = context.Request.Path.StartsWithSegments("/citizen")
+                            ? "/citizen/login"
+                            : context.Request.Path.StartsWithSegments("/org")
+                                ? "/org/login"
+                                : "/admin/login";
+                        context.Response.Redirect($"{loginPath}?returnUrl={Uri.EscapeDataString(context.Request.Path + context.Request.QueryString)}");
+                        return Task.CompletedTask;
+                    };
+                    options.Events.OnRedirectToAccessDenied = context =>
+                    {
+                        if (context.Request.Path.StartsWithSegments("/api"))
+                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        else
+                            context.Response.Redirect("/access-denied");
+                        return Task.CompletedTask;
+                    };
                 });
-            builder.Services.AddAuthorization();
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("AdminOnly", policy =>
+                    policy.RequireAuthenticatedUser().RequireClaim("actor_type", "Admin"));
+                options.AddPolicy("OrganizationOnly", policy =>
+                    policy.RequireAuthenticatedUser().RequireClaim("actor_type", "Organization"));
+                options.AddPolicy("CitizenOnly", policy =>
+                    policy.RequireAuthenticatedUser().RequireClaim("actor_type", "Individual"));
+                options.AddPolicy("Operations", policy =>
+                    policy.RequireAuthenticatedUser().RequireAssertion(context =>
+                        context.User.HasClaim("actor_type", "Admin") ||
+                        context.User.HasClaim("actor_type", "Organization")));
+            });
 
             builder.Services.Configure<ForwardedHeadersOptions>(options =>
             {
@@ -90,6 +140,7 @@ namespace NRCAPP
             var app = builder.Build();
 
             app.UseForwardedHeaders();
+            app.UseRateLimiter();
 
             using (var scope = app.Services.CreateScope())
             {
@@ -103,7 +154,9 @@ namespace NRCAPP
                 app.UseHsts();
             }
 
-            app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+            app.UseWhen(
+                context => !context.Request.Path.StartsWithSegments("/api"),
+                branch => branch.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true));
             app.UseHttpsRedirection();
             app.UseAuthentication();
             app.UseAuthorization();
@@ -123,6 +176,9 @@ namespace NRCAPP
         private static void MapReliefApi(WebApplication app)
         {
             var api = app.MapGroup("/api").WithTags("GRCH");
+            var adminApi = app.MapGroup("/api").WithTags("GRCH Admin").RequireAuthorization("AdminOnly");
+            var operationsApi = app.MapGroup("/api").WithTags("GRCH Operations").RequireAuthorization("Operations");
+            var citizenApi = app.MapGroup("/api").WithTags("GRCH Citizen").RequireAuthorization("CitizenOnly");
 
             // === Auth ===
             api.MapPost("/auth/organization/register", async (
@@ -135,7 +191,7 @@ namespace NRCAPP
                     return Results.BadRequest(new AuthResponse(false, "Organization", null, "", "", val.Errors[0].ErrorMessage));
                 var result = await authService.RegisterOrganizationAsync(request);
                 return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
-            });
+            }).RequireRateLimiting("auth");
 
             api.MapPost("/auth/organization", async (
                 OrganizationLoginRequest request,
@@ -147,7 +203,7 @@ namespace NRCAPP
                     return Results.BadRequest(new AuthResponse(false, "Organization", null, "", "", val.Errors[0].ErrorMessage));
                 var result = await authService.LoginOrganizationAsync(request);
                 return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
-            });
+            }).RequireRateLimiting("auth");
 
             api.MapPost("/auth/individual/register", async (
                 CitizenRegistrationRequest request,
@@ -159,7 +215,7 @@ namespace NRCAPP
                     return Results.BadRequest(new AuthResponse(false, "Individual", null, "", "", val.Errors[0].ErrorMessage));
                 var result = await authService.RegisterCitizenAsync(request);
                 return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
-            });
+            }).RequireRateLimiting("auth");
 
             api.MapPost("/auth/individual", async (
                 IndividualLoginRequest request,
@@ -167,7 +223,7 @@ namespace NRCAPP
             {
                 var result = await authService.LoginIndividualAsync(request);
                 return result.IsAuthenticated ? Results.Ok(result) : Results.BadRequest(result);
-            });
+            }).RequireRateLimiting("auth");
 
             api.MapPost("/auth/admin", async (
                 AdminLoginRequest request,
@@ -175,7 +231,7 @@ namespace NRCAPP
             {
                 var ok = await adminAuth.LoginAsync(request.Username, request.Password);
                 return ok ? Results.Ok(new { message = "تم الدخول." }) : Results.Unauthorized();
-            });
+            }).RequireRateLimiting("auth");
 
             api.MapPost("/auth/admin/logout", async (AdminAuthService adminAuth) =>
             {
@@ -190,14 +246,14 @@ namespace NRCAPP
             });
 
             // === Admin: Organization Approval ===
-            api.MapGet("/admin/pending-organizations", async (AdminAuthService adminAuth) =>
+            adminApi.MapGet("/admin/pending-organizations", async (AdminAuthService adminAuth) =>
             {
                 if (!adminAuth.IsLoggedIn()) return Results.Unauthorized();
                 var pending = await adminAuth.GetPendingOrganizationsAsync();
                 return Results.Ok(pending);
             });
 
-            api.MapPost("/admin/approve-organization", async (
+            adminApi.MapPost("/admin/approve-organization", async (
                 OrgApprovalRequest request,
                 AdminAuthService adminAuth) =>
             {
@@ -216,7 +272,7 @@ namespace NRCAPP
             });
 
             // === Admin: Audit Log ===
-            api.MapGet("/admin/audit-log", async (ReliefDbContext db, int? limit) =>
+            adminApi.MapGet("/admin/audit-log", async (ReliefDbContext db, int? limit) =>
             {
                 var logs = await db.AuditLogs
                     .AsNoTracking()
@@ -228,7 +284,7 @@ namespace NRCAPP
             });
 
             // === Dashboard ===
-            api.MapGet("/dashboard/summary", async (ReliefDbContext db) =>
+            operationsApi.MapGet("/dashboard/summary", async (ReliefDbContext db) =>
             {
                 var plans = await db.DistributionPlans
                     .AsNoTracking()
@@ -258,7 +314,7 @@ namespace NRCAPP
             });
 
             // === Distribution Plans ===
-            api.MapGet("/distribution-plans", async (ReliefDbContext db, string? sector, string? status) =>
+            operationsApi.MapGet("/distribution-plans", async (ReliefDbContext db, string? sector, string? status) =>
             {
                 var query = db.DistributionPlans
                     .AsNoTracking()
@@ -281,11 +337,16 @@ namespace NRCAPP
                 return Results.Ok(plans);
             });
 
-            api.MapPost("/distribution-plans", async (
+            operationsApi.MapPost("/distribution-plans", async (
                 DistributionPlanRequest request,
                 ConflictDetectionService conflictDetection,
-                IValidator<DistributionPlanRequest> validator) =>
+                IValidator<DistributionPlanRequest> validator,
+                HttpContext http) =>
             {
+                var actorType = http.User.FindFirst("actor_type")?.Value;
+                var organizationId = http.User.FindFirst("organization_id")?.Value;
+                if (actorType == "Organization" && organizationId != request.OrganizationId.ToString())
+                    return Results.Forbid();
                 var val = await validator.ValidateAsync(request);
                 if (!val.IsValid)
                     return Results.BadRequest(new DistributionPlanResponse(false, null, DistributionPlanStatus.Warning, val.Errors[0].ErrorMessage));
@@ -294,7 +355,7 @@ namespace NRCAPP
             });
 
             // === Analytics ===
-            api.MapGet("/analytics", async (ReliefDbContext db) =>
+            operationsApi.MapGet("/analytics", async (ReliefDbContext db) =>
             {
                 var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
 
@@ -342,7 +403,7 @@ namespace NRCAPP
             });
 
             // === Gap Detection ===
-            api.MapGet("/gaps", async (ReliefDbContext db) =>
+            operationsApi.MapGet("/gaps", async (ReliefDbContext db) =>
             {
                 var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
                 var now = DateTimeOffset.UtcNow;
@@ -375,7 +436,7 @@ namespace NRCAPP
             });
 
             // === Volunteers ===
-            api.MapGet("/volunteers", async (ReliefDbContext db) =>
+            operationsApi.MapGet("/volunteers", async (ReliefDbContext db) =>
             {
                 var list = await db.Volunteers
                     .AsNoTracking()
@@ -385,7 +446,7 @@ namespace NRCAPP
                 return Results.Ok(list);
             });
 
-            api.MapPost("/volunteers", async (VolunteerRequest request, ReliefDbContext db) =>
+            operationsApi.MapPost("/volunteers", async (VolunteerRequest request, ReliefDbContext db) =>
             {
                 if (string.IsNullOrWhiteSpace(request.FullName) || string.IsNullOrWhiteSpace(request.PhoneNumber))
                 {
@@ -403,7 +464,7 @@ namespace NRCAPP
                 return Results.Created($"/api/volunteers/{volunteer.Id}", new { message = "تم إضافة المتطوع." });
             });
 
-            api.MapPost("/volunteers/confirm-delivery", async (
+            operationsApi.MapPost("/volunteers/confirm-delivery", async (
                 int registrationId,
                 int volunteerId,
                 ReliefDbContext db) =>
@@ -427,7 +488,7 @@ namespace NRCAPP
             });
 
             // === Settings ===
-            api.MapGet("/settings", async (ReliefDbContext db) =>
+            adminApi.MapGet("/settings", async (ReliefDbContext db) =>
             {
                 var settings = await db.SystemSettings
                     .AsNoTracking()
@@ -437,7 +498,7 @@ namespace NRCAPP
                 return Results.Ok(settings);
             });
 
-            api.MapPost("/settings", async (UpdateSettingRequest request, ReliefDbContext db) =>
+            adminApi.MapPost("/settings", async (UpdateSettingRequest request, ReliefDbContext db) =>
             {
                 var setting = await db.SystemSettings.FirstOrDefaultAsync(x => x.Key == request.Key);
                 if (setting is null)
@@ -452,7 +513,7 @@ namespace NRCAPP
             });
 
             // === Sync ===
-            api.MapPost("/sync/queue", async (
+            operationsApi.MapPost("/sync/queue", async (
                 SyncPacketRequest request,
                 SyncQueueService syncQueue) =>
             {
@@ -460,7 +521,7 @@ namespace NRCAPP
                 return Results.Ok(result);
             });
 
-            api.MapGet("/sync/pending", async (SyncQueueService syncQueue) =>
+            operationsApi.MapGet("/sync/pending", async (SyncQueueService syncQueue) =>
             {
                 var pending = await syncQueue.GetPendingAsync();
                 return Results.Ok(pending);
@@ -569,7 +630,7 @@ namespace NRCAPP
             });
 
             // === AI Knowledge Snapshot (live stats) ===
-            api.MapGet("/ai/knowledge-snapshot", async (ReliefDbContext db) =>
+            operationsApi.MapGet("/ai/knowledge-snapshot", async (ReliefDbContext db) =>
             {
                 var totalOrgs = await db.Organizations.CountAsync(x => x.IsVerified);
                 var totalBeneficiaries = await db.Beneficiaries.CountAsync();
@@ -608,11 +669,14 @@ namespace NRCAPP
             });
 
             // === Citizens ===
-            api.MapGet("/citizens/{nationalId}/profile", async (
+            citizenApi.MapGet("/citizens/{nationalId}/profile", async (
                 string nationalId,
                 string? sector,
-                ReliefDbContext db) =>
+                ReliefDbContext db,
+                HttpContext http) =>
             {
+                if (http.User.FindFirst("national_id")?.Value != nationalId)
+                    return Results.Forbid();
                 var beneficiary = await db.Beneficiaries
                     .AsNoTracking()
                     .SingleOrDefaultAsync(x => x.NationalId == nationalId);
@@ -685,10 +749,13 @@ namespace NRCAPP
                     localSchedule));
             });
 
-            api.MapPost("/citizens/enroll", async (
+            citizenApi.MapPost("/citizens/enroll", async (
                 CitizenEnrollmentRequest request,
-                ReliefDbContext db) =>
+                ReliefDbContext db,
+                HttpContext http) =>
             {
+                if (http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value != request.BeneficiaryId.ToString())
+                    return Results.Forbid();
                 var exists = await db.DistributionRegistrations
                     .AnyAsync(x => x.BeneficiaryId == request.BeneficiaryId && x.DistributionPlanId == request.DistributionPlanId);
 
@@ -708,10 +775,12 @@ namespace NRCAPP
                 return Results.Created("/api/citizens/enroll", new { message = "تم إرسال طلب التسجيل للمؤسسة." });
             });
 
-            api.MapPost("/citizens/attendance", async (
+            citizenApi.MapPost("/citizens/attendance", async (
                 CitizenAttendanceRequest request,
-                ReliefDbContext db) =>
+                ReliefDbContext db,
+                HttpContext http) =>
             {
+                var beneficiaryId = http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 var registration = await db.DistributionRegistrations
                     .SingleOrDefaultAsync(x => x.Id == request.RegistrationId);
 
@@ -719,6 +788,8 @@ namespace NRCAPP
                 {
                     return Results.NotFound();
                 }
+                if (registration.BeneficiaryId.ToString() != beneficiaryId)
+                    return Results.Forbid();
 
                 if (registration.Status != RegistrationStatus.Delivered)
                 {
@@ -764,6 +835,12 @@ namespace NRCAPP
 
         private static void MapFormAuthEndpoints(WebApplication app)
         {
+            app.MapPost("/auth/logout/form", async (ReliefAuthService authService) =>
+            {
+                await authService.SignOutAsync();
+                return Results.Redirect("/");
+            });
+
             app.MapPost("/auth/org/register", async (
                 HttpContext context,
                 ReliefAuthService authService) =>
@@ -790,8 +867,8 @@ namespace NRCAPP
                 }
                 // Auto-login after registration
                 await authService.LoginOrganizationAsync(new Api.OrganizationLoginRequest(licenseId.Trim(), passcode.Trim()));
-                return Results.Redirect($"/org/dashboard?orgId={result.ActorId}");
-            });
+                return Results.Redirect("/org/dashboard");
+            }).RequireRateLimiting("auth");
 
             app.MapPost("/auth/citizen/register", async (
                 HttpContext context,
@@ -818,8 +895,8 @@ namespace NRCAPP
                 }
                 // Auto-login after registration
                 await authService.LoginIndividualAsync(new Api.IndividualLoginRequest(nationalId.Trim()));
-                return Results.Redirect($"/citizen/profile?nationalId={Uri.EscapeDataString(nationalId.Trim())}&sector={Uri.EscapeDataString(sector)}");
-            });
+                return Results.Redirect("/citizen/profile");
+            }).RequireRateLimiting("auth");
 
             app.MapPost("/auth/citizen/form-login", async (
                 HttpContext context,
@@ -834,9 +911,9 @@ namespace NRCAPP
                 }
                 var result = await authService.LoginIndividualAsync(new Api.IndividualLoginRequest(nationalId));
                 return result.IsAuthenticated
-                    ? Results.Redirect($"/citizen/profile?nationalId={Uri.EscapeDataString(nationalId)}&sector={Uri.EscapeDataString(sector)}")
+                    ? Results.Redirect("/citizen/profile")
                     : Results.Redirect("/citizen/login?error=failed");
-            });
+            }).RequireRateLimiting("auth");
 
             app.MapPost("/auth/admin/form-login", async (
                 HttpContext context,
@@ -853,7 +930,7 @@ namespace NRCAPP
                 return ok
                     ? Results.Redirect("/admin/dashboard")
                     : Results.Redirect("/admin/login?error=failed");
-            });
+            }).RequireRateLimiting("auth");
 
             app.MapPost("/auth/org/form-login", async (
                 HttpContext context,
@@ -871,7 +948,7 @@ namespace NRCAPP
                     }
                     var result = await authService.LoginOrganizationAsync(new Api.OrganizationLoginRequest(licenseId, passcode));
                     return result.IsAuthenticated
-                        ? Results.Redirect($"/org/dashboard?orgId={result.ActorId}")
+                        ? Results.Redirect("/org/dashboard")
                         : Results.Redirect("/org/login?error=failed");
                 }
                 catch (Exception ex)
@@ -879,7 +956,7 @@ namespace NRCAPP
                     logger.LogError(ex, "Org form-login error");
                     return Results.Redirect("/org/login?error=failed");
                 }
-            });
+            }).RequireRateLimiting("auth");
         }
     }
 }

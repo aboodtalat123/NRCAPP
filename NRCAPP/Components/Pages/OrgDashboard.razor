@@ -1,8 +1,10 @@
 @page "/org/dashboard"
+@attribute [Authorize(Policy = "OrganizationOnly")]
 @inject ReliefDbContext Db
 @inject ConflictDetectionService ConflictDetection
 @inject NavigationManager Navigation
 @inject IHttpContextAccessor HttpContextAccessor
+@inject ILogger<OrgDashboard> Logger
 
 <PageTitle>نقطة - لوحة المؤسسة</PageTitle>
 
@@ -232,7 +234,8 @@
         }
         catch (Exception ex)
         {
-            OrganizationName = $"خطأ في تحميل البيانات: {ex.Message}";
+            Logger.LogError(ex, "Failed to load organization dashboard");
+            OrganizationName = "تعذر تحميل بيانات المؤسسة";
         }
     }
 
@@ -288,7 +291,8 @@
         catch (Exception ex)
         {
             PlanAccepted = false;
-            ResultMessage = $"خطأ: {ex.Message}";
+            Logger.LogError(ex, "Failed to submit distribution plan");
+            ResultMessage = "تعذر إرسال الخطة الآن. تحقق من البيانات وحاول مرة أخرى.";
         }
     }
 

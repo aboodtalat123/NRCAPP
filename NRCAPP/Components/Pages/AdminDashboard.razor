@@ -1,8 +1,10 @@
 @page "/admin/dashboard"
+@attribute [Authorize(Policy = "AdminOnly")]
 @inject AdminAuthService AdminAuth
 @inject NavigationManager Navigation
 @inject ReliefDbContext Db
 @inject IHttpContextAccessor HttpContextAccessor
+@inject ILogger<AdminDashboard> Logger
 
 <PageTitle>نقطة - لوحة الإدارة</PageTitle>
 
@@ -233,7 +235,8 @@
         }
         catch (Exception ex)
         {
-            AdminName = $"خطأ في تحميل البيانات: {ex.Message}";
+            Logger.LogError(ex, "Failed to load admin dashboard");
+            AdminName = "تعذر تحميل بيانات لوحة الإدارة";
         }
     }
 
@@ -353,7 +356,8 @@
         }
         catch (Exception ex)
         {
-            RejectError = $"خطأ: {ex.Message}";
+            Logger.LogError(ex, "Failed to reject organization {OrganizationId}", RejectOrgId);
+            RejectError = "تعذر تنفيذ الرفض الآن. حاول مرة أخرى.";
         }
     }
 
@@ -378,7 +382,8 @@
         }
         catch (Exception ex)
         {
-            RefreshMessage = $"❌ خطأ في الاتصال: {ex.Message}";
+            Logger.LogError(ex, "Failed to refresh admin dashboard");
+            RefreshMessage = "تعذر تحديث البيانات الآن. حاول مرة أخرى.";
         }
         IsRefreshing = false;
     }

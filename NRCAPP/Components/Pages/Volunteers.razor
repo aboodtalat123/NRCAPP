@@ -1,6 +1,8 @@
 @page "/volunteers"
+@attribute [Authorize(Policy = "Operations")]
 @rendermode InteractiveServer
 @inject ReliefDbContext Db
+@inject ILogger<Volunteers> Logger
 
 <PageTitle>نقطة - المتطوعون</PageTitle>
 
@@ -71,7 +73,7 @@
             NewName = ""; NewPhone = ""; AddSuccess = true; AddMessage = "تمت إضافة المتطوع بنجاح.";
             await LoadVolunteerList();
         }
-        catch (Exception ex) { AddMessage = $"تعذر الحفظ: {ex.Message}"; }
+        catch (Exception ex) { Logger.LogError(ex, "Failed to add volunteer"); AddMessage = "تعذر الحفظ الآن. تحقق من البيانات وحاول مرة أخرى."; }
         finally { IsAdding = false; }
     }
 }

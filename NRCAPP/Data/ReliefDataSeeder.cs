@@ -224,15 +224,36 @@ public static class ReliefDataSeeder
 
     private static async Task SeedDefaultAdminAsync(ReliefDbContext db)
     {
-        if (await db.Admins.AnyAsync())
+        var configuredUsername = Environment.GetEnvironmentVariable("NRCAPP_ADMIN_USERNAME")?.Trim();
+        var configuredPassword = Environment.GetEnvironmentVariable("NRCAPP_ADMIN_PASSWORD");
+        configuredUsername = string.IsNullOrWhiteSpace(configuredUsername) ? "admin" : configuredUsername;
+
+        var existingAdmin = await db.Admins.FirstOrDefaultAsync(x => x.Username == configuredUsername)
+            ?? await db.Admins.FirstOrDefaultAsync();
+        if (existingAdmin is not null)
         {
+            if (!string.IsNullOrWhiteSpace(configuredPassword)
+                && !BCrypt.Net.BCrypt.Verify(configuredPassword, existingAdmin.PasswordHash))
+            {
+                existingAdmin.Username = configuredUsername;
+                existingAdmin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(configuredPassword);
+                await db.SaveChangesAsync();
+            }
             return;
+        }
+
+        if (string.IsNullOrWhiteSpace(configuredPassword))
+        {
+            var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            if (!string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("NRCAPP_ADMIN_PASSWORD must be configured before the first production start.");
+            configuredPassword = "123456";
         }
 
         db.Admins.Add(new Admin
         {
-            Username = "admin",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+            Username = configuredUsername,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(configuredPassword),
             FullName = "مسؤول النظام",
             Role = "SuperAdmin",
             IsActive = true

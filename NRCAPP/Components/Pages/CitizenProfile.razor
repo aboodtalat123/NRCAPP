@@ -1,6 +1,9 @@
 @page "/citizen/profile"
+@attribute [Authorize(Policy = "CitizenOnly")]
 @rendermode InteractiveServer
 @inject ReliefDbContext Db
+@inject IHttpContextAccessor HttpContextAccessor
+@inject ILogger<CitizenProfile> Logger
 
 <PageTitle>نقطة - ملف المواطن</PageTitle>
 
@@ -62,8 +65,7 @@
 </section>
 
 @code {
-    [SupplyParameterFromQuery] private string NationalId { get; set; } = "";
-    [SupplyParameterFromQuery] private string? Sector { get; set; }
+    private string NationalId { get; set; } = "";
 
     private sealed record AgencyView(int OrganizationId, string OrganizationName, int ActivePlans, AidKind NextAidType);
     private sealed record RegistrationView(string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, RegistrationStatus Status);
@@ -83,16 +85,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var user = HttpContextAccessor.HttpContext?.User;
+        NationalId = user?.FindFirst("national_id")?.Value ?? "";
         try { await LoadCitizenData(); }
-        catch (Exception ex) { PageMessage = $"تعذر تحميل بيانات الملف: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load citizen profile for authenticated user");
+            PageMessage = "تعذر تحميل بيانات الملف الآن. حاول مرة أخرى بعد قليل.";
+        }
     }
 
     private async Task LoadCitizenData()
     {
-        if (string.IsNullOrWhiteSpace(NationalId)) { CitizenName = "يرجى الدخول من بوابة المواطن"; EffectiveSector = Sector ?? "غير محدد"; return; }
+        if (string.IsNullOrWhiteSpace(NationalId)) { CitizenName = "يرجى الدخول من بوابة المواطن"; EffectiveSector = "غير محدد"; return; }
         var beneficiary = await Db.Beneficiaries.AsNoTracking().SingleOrDefaultAsync(x => x.NationalId == NationalId.Trim());
         if (beneficiary is null) { CitizenName = "لم يتم العثور على المواطن"; PageMessage = "تأكد من رقم الهوية ثم أعد المحاولة."; return; }
-        BeneficiaryId = beneficiary.Id; CitizenName = beneficiary.FullName; EffectiveSector = string.IsNullOrWhiteSpace(Sector) ? beneficiary.CurrentSector : Sector.Trim();
+        BeneficiaryId = beneficiary.Id; CitizenName = beneficiary.FullName; EffectiveSector = beneficiary.CurrentSector;
         var now = DateTimeOffset.UtcNow; var nextDay = now.AddHours(24);
         ActiveAgencies = await Db.DistributionPlans.AsNoTracking().Include(x => x.Organization).Where(x => x.TargetSector == EffectiveSector && x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now).GroupBy(x => new { x.OrganizationId, Name = x.Organization == null ? "مؤسسة غير معروفة" : x.Organization.NgoName }).Select(x => new AgencyView(x.Key.OrganizationId, x.Key.Name, x.Count(), x.OrderBy(p => p.ScheduledDate).Select(p => p.AidType).First())).ToListAsync();
         RegisteredAid = await Db.DistributionRegistrations.AsNoTracking().Include(x => x.DistributionPlan).ThenInclude(x => x!.Organization).Where(x => x.BeneficiaryId == BeneficiaryId).OrderBy(x => x.DistributionPlan!.ScheduledDate).Select(x => new RegistrationView(x.DistributionPlan!.Organization == null ? "مؤسسة غير معروفة" : x.DistributionPlan.Organization.NgoName, x.DistributionPlan.AidType, x.DistributionPlan.ScheduledDate, x.Status)).ToListAsync();
@@ -111,7 +119,7 @@
             EnrollmentMessages[organizationId] = exists ? "أنت مسجل مسبقاً في هذه الخطة." : "تم إرسال طلب التسجيل بنجاح.";
             await LoadCitizenData();
         }
-        catch (Exception ex) { EnrollmentMessages[organizationId] = $"تعذر إرسال الطلب: {ex.Message}"; }
+        catch (Exception ex) { Logger.LogError(ex, "Enrollment request failed for organization {OrganizationId}", organizationId); EnrollmentMessages[organizationId] = "تعذر إرسال الطلب الآن. حاول مرة أخرى."; }
         finally { ProcessingOrgs.Remove(organizationId); }
     }
 
@@ -125,7 +133,7 @@
             registration.Status = RegistrationStatus.AttendanceConfirmed; registration.AttendanceConfirmedAt = DateTimeOffset.UtcNow; await Db.SaveChangesAsync();
             AttendanceMessage = "تم تأكيد حضورك وحجز دورك."; await LoadCitizenData();
         }
-        catch (Exception ex) { AttendanceMessage = $"تعذر تأكيد الحضور: {ex.Message}"; }
+        catch (Exception ex) { Logger.LogError(ex, "Attendance confirmation failed for plan {PlanId}", distributionPlanId); AttendanceMessage = "تعذر تأكيد الحضور الآن. حاول مرة أخرى."; }
         finally { ProcessingAttendance.Remove(distributionPlanId); }
     }
 

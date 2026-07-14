@@ -1,6 +1,22 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-</Router>
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    <LayoutView Layout="typeof(Layout.MainLayout)">
+                        <section class="access-denied" dir="rtl">
+                            <span class="access-denied__code">403</span>
+                            <h1>هذه المساحة محمية</h1>
+                            <p>سجّل الدخول بالحساب المصرّح له للوصول إلى هذه الصفحة.</p>
+                            <div class="access-denied__actions">
+                                <a class="primary-link" href="/">العودة إلى بوابة الدخول</a>
+                                <a class="secondary-link" href="/admin/login">دخول مسؤول النظام</a>
+                            </div>
+                        </section>
+                    </LayoutView>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>
