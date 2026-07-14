@@ -13,6 +13,7 @@
         <div class="profile-chip"><span>رقم الهوية</span><strong>@(string.IsNullOrWhiteSpace(NationalId) ? "غير متوفر" : NationalId)</strong></div>
     </div>
 
+    @if (!string.IsNullOrWhiteSpace(EnrollmentMessage)) { <div class="result-box @(EnrollmentOutcome == "success" ? "success" : "danger") page-message" role="status">@EnrollmentMessage</div> }
     @if (!string.IsNullOrWhiteSpace(PageMessage)) { <div class="result-box warning page-message" role="alert">@PageMessage</div> }
 
     <section class="citizen-summary-grid">
@@ -22,19 +23,44 @@
     </section>
 
     <section class="citizen-grid">
-        <article class="form-panel citizen-card">
+        <article class="form-panel citizen-card" id="available-coupons">
             <div class="panel-title"><span class="section-mark">١</span><div><span class="panel-kicker">خطوة واحدة</span><h3>اطلب التسجيل في كوبونة</h3><p>اختر المؤسسة المناسبة في قطاعك، وسنرسل طلبك مباشرة.</p></div></div>
-            <div class="agency-list">
-                @foreach (var agency in ActiveAgencies)
+            <div class="coupon-list">
+                @foreach (var coupon in AvailableCoupons)
                 {
-                    var isProcessing = ProcessingOrgs.Contains(agency.OrganizationId);
-                    <div class="agency-card">
-                        <div class="agency-copy"><b>@agency.OrganizationName</b><span>@agency.ActivePlans خطة متاحة · أقرب مساعدة: @ToArabicAidType(agency.NextAidType)</span></div>
-                        <button type="button" class="agency-action" @onclick="() => RequestEnrollment(agency.OrganizationId)" disabled="@isProcessing"><span>@(isProcessing ? "جارٍ الإرسال..." : "طلب التسجيل")</span><b>←</b></button>
-                        @if (EnrollmentMessages.TryGetValue(agency.OrganizationId, out var message)) { <div class="enrollment-feedback @(message.StartsWith("تم") ? "success-text" : "")" role="status">@message</div> }
+                    <div class="coupon-card @(coupon.IsFull ? "coupon-full" : "")">
+                        <div class="coupon-heading">
+                            <span class="coupon-number">كوبونة #@coupon.PlanId</span>
+                            <span class="pill @(coupon.IsFull ? "pill-conflict" : "pill-active")">@(coupon.IsFull ? "مكتملة" : $"{coupon.AvailablePlaces} مقعد متاح")</span>
+                        </div>
+                        <div class="coupon-copy">
+                            <b>@coupon.OrganizationName</b>
+                            <strong>@ToArabicAidType(coupon.AidType)</strong>
+                        </div>
+                        <div class="coupon-meta">
+                            <span><small>القطاع</small>@EffectiveSector</span>
+                            <span><small>الموعد</small>@coupon.ScheduledDate.ToLocalTime().ToString("dd/MM · HH:mm")</span>
+                            <span><small>الحجوزات</small>@coupon.ReservedPlaces / @coupon.Capacity</span>
+                        </div>
+                        @if (coupon.MyStatus is not null)
+                        {
+                            <div class="coupon-state"><span class="pill pill-pending">@ToArabicRegistrationStatus(coupon.MyStatus.Value)</span><small>طلبك محفوظ في قاعدة البيانات.</small></div>
+                        }
+                        else if (coupon.IsFull)
+                        {
+                            <div class="coupon-state"><span class="pill pill-conflict">السعة مكتملة</span><small>لا يمكن إرسال طلب جديد لهذه الكوبونة.</small></div>
+                        }
+                        else
+                        {
+                            <form method="post" action="/citizen/enroll/form" class="coupon-enrollment-form">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="planId" value="@coupon.PlanId" />
+                                <button type="submit" class="agency-action"><span>طلب التسجيل في هذه الكوبونة</span><b>←</b></button>
+                            </form>
+                        }
                     </div>
                 }
-                @if (ActiveAgencies.Count == 0) { <p class="empty-state">لا توجد كوبونات نشطة في قطاعك حالياً. ستظهر هنا تلقائياً عند اعتماد أول خطة.</p> }
+                @if (AvailableCoupons.Count == 0) { <p class="empty-state">لا توجد كوبونات معتمدة في قطاعك حالياً. ستظهر هنا فور اعتماد المؤسسة لخطة مستقبلية مطابقة لقطاعك.</p> }
             </div>
         </article>
 
@@ -67,20 +93,26 @@
 @code {
     private string NationalId { get; set; } = "";
 
-    private sealed record AgencyView(int OrganizationId, string OrganizationName, int ActivePlans, AidKind NextAidType);
+    private sealed record CouponView(int PlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, int Capacity, int ReservedPlaces, RegistrationStatus? MyStatus)
+    {
+        public int AvailablePlaces => Math.Max(0, Capacity - ReservedPlaces);
+        public bool IsFull => AvailablePlaces == 0;
+    }
     private sealed record RegistrationView(string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, RegistrationStatus Status);
     private sealed record ScheduleView(int DistributionPlanId, string OrganizationName, AidKind AidType, DateTimeOffset ScheduledDate, int Capacity, int ConfirmedAttendance, bool IsRegistered, RegistrationStatus? MyStatus);
 
     private int BeneficiaryId { get; set; }
+    [SupplyParameterFromQuery(Name = "enrollment")]
+    private string? EnrollmentOutcome { get; set; }
+    [SupplyParameterFromQuery(Name = "message")]
+    private string? EnrollmentMessage { get; set; }
     private string CitizenName { get; set; } = "ملف المواطن";
     private string EffectiveSector { get; set; } = "غير محدد";
     private string? PageMessage { get; set; }
     private string? AttendanceMessage { get; set; }
-    private List<AgencyView> ActiveAgencies { get; set; } = [];
+    private List<CouponView> AvailableCoupons { get; set; } = [];
     private List<RegistrationView> RegisteredAid { get; set; } = [];
     private List<ScheduleView> LocalSchedule { get; set; } = [];
-    private Dictionary<int, string> EnrollmentMessages { get; set; } = [];
-    private HashSet<int> ProcessingOrgs { get; set; } = [];
     private HashSet<int> ProcessingAttendance { get; set; } = [];
 
     protected override async Task OnInitializedAsync()
@@ -102,25 +134,9 @@
         if (beneficiary is null) { CitizenName = "لم يتم العثور على المواطن"; PageMessage = "تأكد من رقم الهوية ثم أعد المحاولة."; return; }
         BeneficiaryId = beneficiary.Id; CitizenName = beneficiary.FullName; EffectiveSector = beneficiary.CurrentSector;
         var now = DateTimeOffset.UtcNow; var nextDay = now.AddHours(24);
-        ActiveAgencies = await Db.DistributionPlans.AsNoTracking().Include(x => x.Organization).Where(x => x.TargetSector == EffectiveSector && x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now).GroupBy(x => new { x.OrganizationId, Name = x.Organization == null ? "مؤسسة غير معروفة" : x.Organization.NgoName }).Select(x => new AgencyView(x.Key.OrganizationId, x.Key.Name, x.Count(), x.OrderBy(p => p.ScheduledDate).Select(p => p.AidType).First())).ToListAsync();
+        AvailableCoupons = await Db.DistributionPlans.AsNoTracking().Include(x => x.Organization).Include(x => x.Registrations).Where(x => x.TargetSector == EffectiveSector && x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now).OrderBy(x => x.ScheduledDate).Select(x => new CouponView(x.Id, x.Organization == null ? "مؤسسة غير معروفة" : x.Organization.NgoName, x.AidType, x.ScheduledDate, x.MaxBeneficiaryCapacity, x.Registrations.Count(r => r.Status != RegistrationStatus.Rejected), x.Registrations.Where(r => r.BeneficiaryId == BeneficiaryId).Select(r => (RegistrationStatus?)r.Status).FirstOrDefault())).ToListAsync();
         RegisteredAid = await Db.DistributionRegistrations.AsNoTracking().Include(x => x.DistributionPlan).ThenInclude(x => x!.Organization).Where(x => x.BeneficiaryId == BeneficiaryId).OrderBy(x => x.DistributionPlan!.ScheduledDate).Select(x => new RegistrationView(x.DistributionPlan!.Organization == null ? "مؤسسة غير معروفة" : x.DistributionPlan.Organization.NgoName, x.DistributionPlan.AidType, x.DistributionPlan.ScheduledDate, x.Status)).ToListAsync();
         LocalSchedule = await Db.DistributionPlans.AsNoTracking().Include(x => x.Organization).Include(x => x.Registrations).Where(x => x.TargetSector == EffectiveSector && x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now && x.ScheduledDate <= nextDay).OrderBy(x => x.ScheduledDate).Select(x => new ScheduleView(x.Id, x.Organization == null ? "مؤسسة غير معروفة" : x.Organization.NgoName, x.AidType, x.ScheduledDate, x.MaxBeneficiaryCapacity, x.Registrations.Count(r => r.Status == RegistrationStatus.AttendanceConfirmed || r.Status == RegistrationStatus.Delivered), x.Registrations.Any(r => r.BeneficiaryId == BeneficiaryId), x.Registrations.Where(r => r.BeneficiaryId == BeneficiaryId).Select(r => (RegistrationStatus?)r.Status).FirstOrDefault())).ToListAsync();
-    }
-
-    private async Task RequestEnrollment(int organizationId)
-    {
-        if (BeneficiaryId == 0 || !ProcessingOrgs.Add(organizationId)) return;
-        try
-        {
-            var plan = await Db.DistributionPlans.Where(x => x.OrganizationId == organizationId && x.TargetSector == EffectiveSector && x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= DateTimeOffset.UtcNow).OrderBy(x => x.ScheduledDate).FirstOrDefaultAsync();
-            if (plan is null) { EnrollmentMessages[organizationId] = "لا توجد خطة متاحة لهذه المؤسسة في قطاعك حالياً."; return; }
-            var exists = await Db.DistributionRegistrations.AnyAsync(x => x.BeneficiaryId == BeneficiaryId && x.DistributionPlanId == plan.Id);
-            if (!exists) { Db.DistributionRegistrations.Add(new DistributionRegistration { BeneficiaryId = BeneficiaryId, DistributionPlanId = plan.Id, Status = RegistrationStatus.Requested }); await Db.SaveChangesAsync(); }
-            EnrollmentMessages[organizationId] = exists ? "أنت مسجل مسبقاً في هذه الخطة." : "تم إرسال طلب التسجيل بنجاح.";
-            await LoadCitizenData();
-        }
-        catch (Exception ex) { Logger.LogError(ex, "Enrollment request failed for organization {OrganizationId}", organizationId); EnrollmentMessages[organizationId] = "تعذر إرسال الطلب الآن. حاول مرة أخرى."; }
-        finally { ProcessingOrgs.Remove(organizationId); }
     }
 
     private async Task ConfirmAttendance(int distributionPlanId)

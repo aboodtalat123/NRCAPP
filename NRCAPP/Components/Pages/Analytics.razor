@@ -1,152 +1,228 @@
 @page "/analytics"
-@attribute [Authorize(Policy = "Operations")]
+@attribute [Authorize(Policy = "PlatformUser")]
 @inject ReliefDbContext Db
+@inject ILogger<Analytics> Logger
 
-<PageTitle>نقطة - التحليلات</PageTitle>
+<PageTitle>نقطة - تحليلات التوزيع</PageTitle>
 
 <section class="feature-page analytics-page" dir="rtl">
-    <div class="role-header">
+    <div class="role-header analytics-hero">
         <div>
-            <span class="eyebrow">التحليلات والإحصائيات</span>
-            <h2>إحصائيات المنصة</h2>
-            <p>بيانات حقيقية من قاعدة البيانات.</p>
+            <span class="eyebrow">مؤشرات مباشرة من قاعدة البيانات</span>
+            <h2>أين تصل المساعدات؟</h2>
+            <p>قراءة واضحة للخطط والكوبونات والطلبات والتسليم حسب القطاع، من دون عرض أي بيانات شخصية للمواطنين.</p>
         </div>
+        <button type="button" class="analytics-refresh" @onclick="LoadStats" disabled="@IsLoading">@(IsLoading ? "جارٍ التحديث..." : "تحديث البيانات")</button>
     </div>
 
-    <section class="admin-summary-grid">
-        <article>
-            <span>مؤسسات معتمدة</span>
-            <strong>@Stats.ActiveOrganizations</strong>
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="result-box danger" role="alert">@ErrorMessage</div>
+    }
+
+    <section class="analytics-kpis" aria-label="ملخص المؤشرات">
+        <article><span>المواطنون المسجلون</span><strong>@TotalBeneficiaries</strong><small>في جميع القطاعات</small></article>
+        <article><span>كوبونات نشطة</span><strong>@AuthorizedPlans</strong><small>متاحة للتسجيل الآن</small></article>
+        <article><span>طلبات المواطنين</span><strong>@TotalRegistrations</strong><small>@TotalApproved معتمد أو مؤكد</small></article>
+        <article><span>عمليات تسليم</span><strong class="success">@TotalDelivered</strong><small>مثبتة من المؤسسات</small></article>
+        <article><span>مؤسسات معتمدة</span><strong>@ActiveOrganizations</strong><small>مرتبطة بالمنصة</small></article>
+    </section>
+
+    <section class="analytics-grid">
+        <article class="analytics-panel sector-chart-panel">
+            <div class="analytics-panel-head">
+                <div><span class="panel-kicker">تغطية جغرافية</span><h3>السعة المتاحة مقابل عدد المواطنين</h3></div>
+                <span class="data-badge">بيانات حية</span>
+            </div>
+            <div class="bar-chart">
+                @foreach (var sector in SectorStats)
+                {
+                    <div class="bar-row">
+                        <div class="bar-label"><b>@sector.Sector</b><span>@sector.ActivePlans خطة · @sector.TotalCapacity كوبونة</span></div>
+                        <div class="bar-track" title="نسبة التغطية @sector.CoveragePercent%"><span style="width: @(sector.CoveragePercent)%"></span></div>
+                        <strong>@sector.CoveragePercent%</strong>
+                    </div>
+                }
+            </div>
+            @if (SectorStats.Count == 0)
+            {
+                <div class="empty-state">لا توجد بيانات قطاعات بعد.</div>
+            }
         </article>
-        <article>
-            <span>مستفيدين مسجلين</span>
-            <strong>@Stats.TotalBeneficiaries</strong>
-        </article>
-        <article>
-            <span>تم التسليم</span>
-            <strong class="success">@Stats.TotalDelivered</strong>
-        </article>
-        <article>
-            <span>معتمد</span>
-            <strong>@Stats.TotalApproved</strong>
+
+        <article class="analytics-panel status-chart-panel">
+            <div class="analytics-panel-head">
+                <div><span class="panel-kicker">دورة الطلب</span><h3>حالات طلبات التسجيل</h3></div>
+            </div>
+            <div class="donut-layout">
+                <div class="donut-chart" style="@DonutStyle" aria-label="توزيع حالات الطلبات">
+                    <div><strong>@TotalRegistrations</strong><span>طلب</span></div>
+                </div>
+                <div class="chart-legend">
+                    @foreach (var status in RegistrationStatuses)
+                    {
+                        <div><i style="background:@status.Color"></i><span>@status.Label</span><b>@status.Count</b></div>
+                    }
+                </div>
+            </div>
         </article>
     </section>
 
-    <section class="admin-content-grid">
-        <article class="admin-panel">
-            <div class="admin-panel-title">
-                <h2>الخطط حسب الحالة</h2>
-            </div>
-            <div class="plans-table">
-                <div class="table-head">
-                    <span>الحالة</span>
-                    <span>العدد</span>
-                </div>
-                <div class="table-row">
-                    <span>مسودة</span>
-                    <span>@Stats.PlansByStatusDraft</span>
-                </div>
-                <div class="table-row">
-                    <span>معتمدة</span>
-                    <span>@Stats.PlansByStatusAuthorized</span>
-                </div>
-                <div class="table-row">
-                    <span>تحذير</span>
-                    <span>@Stats.PlansByStatusWarning</span>
-                </div>
-                <div class="table-row">
-                    <span>مكتملة</span>
-                    <span>@Stats.PlansByStatusCompleted</span>
-                </div>
-                <div class="table-row">
-                    <span>ملغية</span>
-                    <span>@Stats.PlansByStatusCancelled</span>
-                </div>
+    <section class="analytics-panel">
+        <div class="analytics-panel-head">
+            <div><span class="panel-kicker">خريطة تشغيلية</span><h3>التوزيع حسب المناطق</h3><p>كل بطاقة تجمع المواطنين والخطط والطلبات والتسليم في القطاع نفسه.</p></div>
+        </div>
+        <div class="region-grid">
+            @foreach (var sector in SectorStats)
+            {
+                <article class="region-card @CoverageTone(sector.CoveragePercent)">
+                    <div class="region-card-head"><h4>@sector.Sector</h4><span>@CoverageLabel(sector.CoveragePercent)</span></div>
+                    <div class="region-metrics">
+                        <div><small>مواطن</small><strong>@sector.BeneficiaryCount</strong></div>
+                        <div><small>خطة نشطة</small><strong>@sector.ActivePlans</strong></div>
+                        <div><small>طلب</small><strong>@sector.Requests</strong></div>
+                        <div><small>تسليم</small><strong>@sector.Delivered</strong></div>
+                    </div>
+                    <div class="region-progress"><span style="width: @(sector.CoveragePercent)%"></span></div>
+                </article>
+            }
+        </div>
+    </section>
+
+    <section class="analytics-grid analytics-lower-grid">
+        <article class="analytics-panel">
+            <div class="analytics-panel-head"><div><span class="panel-kicker">حالة الخطط</span><h3>الخطط من الإنشاء حتى الإغلاق</h3></div></div>
+            <div class="plan-status-bars">
+                @foreach (var status in PlanStatuses)
+                {
+                    <div><span>@status.Label</span><div><i style="width: @(status.Percent)%"></i></div><b>@status.Count</b></div>
+                }
             </div>
         </article>
 
-        <article class="admin-panel">
-            <div class="admin-panel-title">
-                <h2>تغطية القطاعات</h2>
-            </div>
-            <div class="plans-table">
-                <div class="table-head">
-                    <span>القطاع</span>
-                    <span>مستفيدين</span>
-                    <span>خطط نشطة</span>
-                    <span>نسبة التغطية</span>
-                </div>
-                @foreach (var sector in Stats.SectorStats)
+        <article class="analytics-panel">
+            <div class="analytics-panel-head"><div><span class="panel-kicker">آخر النشاطات</span><h3>أحدث خطط التوزيع</h3></div></div>
+            <div class="recent-distributions">
+                @foreach (var plan in RecentPlans)
                 {
-                    <div class="table-row">
-                        <span>@sector.Sector</span>
-                        <span>@sector.BeneficiaryCount</span>
-                        <span>@sector.ActivePlanCount</span>
-                        <span>
-                            @if (sector.BeneficiaryCount == 0)
-                            {
-                                <span class="pill pill-pending">لا توجد بيانات كافية</span>
-                            }
-                            else
-                            {
-                                <span class="pill @(sector.CoverageRatio >= 0.5 ? "pill-active" : "pill-conflict")">
-                                    @(sector.CoverageRatio.ToString("P0"))
-                                </span>
-                            }
-                        </span>
+                    <div class="recent-item">
+                        <span class="recent-date">@plan.ScheduledDate.ToLocalTime().ToString("dd/MM")</span>
+                        <div><b>@plan.OrganizationName · @ToArabicAidType(plan.AidType)</b><small>@plan.Sector · @plan.RegisteredCount / @plan.Capacity طلب</small></div>
+                        <span class="status @plan.Status.ToString().ToLowerInvariant()">@ToArabicPlanStatus(plan.Status)</span>
                     </div>
+                }
+                @if (RecentPlans.Count == 0)
+                {
+                    <div class="empty-state">لا توجد خطط توزيع مسجلة بعد.</div>
                 }
             </div>
         </article>
     </section>
-
-    @if (Stats.SectorStats.All(s => s.BeneficiaryCount == 0 && s.ActivePlanCount == 0))
-    {
-        <div class="empty-state">لا توجد بيانات كافية بعد لعرض الإحصائيات.</div>
-    }
 </section>
 
 @code {
-    private Api.AnalyticsResponse Stats { get; set; } = new(0, 0, 0, 0, 0, 0, 0, 0, 0, []);
+    private static readonly string[] DefaultSectors = ["الرمال", "جباليا", "خان يونس", "دير البلح", "رفح"];
+    private sealed record SectorAnalytics(string Sector, int BeneficiaryCount, int ActivePlans, int TotalCapacity, int Requests, int Delivered, int CoveragePercent);
+    private sealed record ChartSlice(string Label, int Count, string Color, int Percent);
+    private sealed record RecentPlan(int Id, string OrganizationName, AidKind AidType, string Sector, DateTimeOffset ScheduledDate, int Capacity, int RegisteredCount, DistributionPlanStatus Status);
 
-    protected override async Task OnInitializedAsync()
+    private int ActiveOrganizations { get; set; }
+    private int TotalBeneficiaries { get; set; }
+    private int AuthorizedPlans { get; set; }
+    private int TotalRegistrations { get; set; }
+    private int TotalApproved { get; set; }
+    private int TotalDelivered { get; set; }
+    private bool IsLoading { get; set; }
+    private string? ErrorMessage { get; set; }
+    private List<SectorAnalytics> SectorStats { get; set; } = [];
+    private List<ChartSlice> RegistrationStatuses { get; set; } = [];
+    private List<ChartSlice> PlanStatuses { get; set; } = [];
+    private List<RecentPlan> RecentPlans { get; set; } = [];
+
+    private string DonutStyle
     {
-        await LoadStats();
+        get
+        {
+            if (TotalRegistrations == 0) return "background: #e6eeec";
+            var cursor = 0d;
+            var segments = new List<string>();
+            foreach (var slice in RegistrationStatuses.Where(x => x.Count > 0))
+            {
+                var next = cursor + (slice.Count * 100d / TotalRegistrations);
+                segments.Add($"{slice.Color} {cursor.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}% {next.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}%");
+                cursor = next;
+            }
+            return $"background: conic-gradient({string.Join(", ", segments)})";
+        }
     }
+
+    protected override async Task OnInitializedAsync() => await LoadStats();
 
     private async Task LoadStats()
     {
-        var sectors = new[] { "الرمال", "جباليا", "خان يونس", "دير البلح", "رفح" };
-
-        var activeOrganizations = await Db.Organizations.CountAsync(x => x.IsVerified);
-        var totalBeneficiaries = await Db.Beneficiaries.CountAsync();
-
-        var draft = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Draft);
-        var authorized = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Authorized);
-        var warning = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Warning);
-        var completed = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Completed);
-        var cancelled = await Db.DistributionPlans.CountAsync(x => x.Status == DistributionPlanStatus.Cancelled);
-        var delivered = await Db.DistributionRegistrations.CountAsync(x => x.Status == RegistrationStatus.Delivered);
-        var approved = await Db.DistributionRegistrations.CountAsync(x => x.Status >= RegistrationStatus.Approved);
-
-        var sectorStats = new List<Api.SectorStatItem>();
-        foreach (var sector in sectors)
+        if (IsLoading) return;
+        IsLoading = true;
+        ErrorMessage = null;
+        try
         {
-            var beneficiaryCount = await Db.Beneficiaries.CountAsync(x => x.CurrentSector == sector);
-            var activePlanCount = await Db.DistributionPlans.CountAsync(x => x.TargetSector == sector && x.Status == DistributionPlanStatus.Authorized);
-            var totalCapacity = await Db.DistributionPlans
-                .Where(x => x.TargetSector == sector && x.Status == DistributionPlanStatus.Authorized)
-                .SumAsync(x => (long?)x.MaxBeneficiaryCapacity) ?? 0;
+            var now = DateTimeOffset.UtcNow;
+            ActiveOrganizations = await Db.Organizations.AsNoTracking().CountAsync(x => x.IsVerified);
+            TotalBeneficiaries = await Db.Beneficiaries.AsNoTracking().CountAsync();
+            AuthorizedPlans = await Db.DistributionPlans.AsNoTracking().CountAsync(x => x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now);
+            TotalRegistrations = await Db.DistributionRegistrations.AsNoTracking().CountAsync();
+            TotalDelivered = await Db.DistributionRegistrations.AsNoTracking().CountAsync(x => x.Status == RegistrationStatus.Delivered);
+            TotalApproved = await Db.DistributionRegistrations.AsNoTracking().CountAsync(x => x.Status == RegistrationStatus.Approved || x.Status == RegistrationStatus.AttendanceConfirmed || x.Status == RegistrationStatus.Delivered);
 
-            var coverageRatio = beneficiaryCount > 0
-                ? Math.Min(1.0, (double)totalCapacity / beneficiaryCount)
-                : 1.0;
+            var registrationCounts = await Db.DistributionRegistrations.AsNoTracking().GroupBy(x => x.Status).Select(x => new { Status = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Status, x => x.Count);
+            RegistrationStatuses =
+            [
+                MakeSlice("قيد المراجعة", registrationCounts.GetValueOrDefault(RegistrationStatus.Requested), "#dca72c", TotalRegistrations),
+                MakeSlice("معتمد", registrationCounts.GetValueOrDefault(RegistrationStatus.Approved), "#2d8da0", TotalRegistrations),
+                MakeSlice("حضور مؤكد", registrationCounts.GetValueOrDefault(RegistrationStatus.AttendanceConfirmed), "#6b7fd7", TotalRegistrations),
+                MakeSlice("تم التسليم", registrationCounts.GetValueOrDefault(RegistrationStatus.Delivered), "#16745f", TotalRegistrations),
+                MakeSlice("مرفوض", registrationCounts.GetValueOrDefault(RegistrationStatus.Rejected), "#b74444", TotalRegistrations)
+            ];
 
-            sectorStats.Add(new Api.SectorStatItem(sector, beneficiaryCount, activePlanCount, coverageRatio));
+            var planCounts = await Db.DistributionPlans.AsNoTracking().GroupBy(x => x.Status).Select(x => new { Status = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Status, x => x.Count);
+            var totalPlans = planCounts.Values.Sum();
+            PlanStatuses =
+            [
+                MakeSlice("معتمدة", planCounts.GetValueOrDefault(DistributionPlanStatus.Authorized), "#16745f", totalPlans),
+                MakeSlice("تحذير تعارض", planCounts.GetValueOrDefault(DistributionPlanStatus.Warning), "#b74444", totalPlans),
+                MakeSlice("مكتملة", planCounts.GetValueOrDefault(DistributionPlanStatus.Completed), "#2d8da0", totalPlans),
+                MakeSlice("مسودة", planCounts.GetValueOrDefault(DistributionPlanStatus.Draft), "#dca72c", totalPlans),
+                MakeSlice("ملغية", planCounts.GetValueOrDefault(DistributionPlanStatus.Cancelled), "#7b8c90", totalPlans)
+            ];
+
+            var beneficiaryBySector = await Db.Beneficiaries.AsNoTracking().GroupBy(x => x.CurrentSector).Select(x => new { Sector = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Sector, x => x.Count);
+            var activePlansBySector = await Db.DistributionPlans.AsNoTracking().Where(x => x.Status == DistributionPlanStatus.Authorized && x.ScheduledDate >= now).GroupBy(x => x.TargetSector).Select(x => new { Sector = x.Key, Plans = x.Count(), Capacity = x.Sum(p => p.MaxBeneficiaryCapacity) }).ToListAsync();
+            var requestsBySector = await Db.DistributionRegistrations.AsNoTracking().Where(x => x.DistributionPlan != null).GroupBy(x => x.DistributionPlan!.TargetSector).Select(x => new { Sector = x.Key, Requests = x.Count(), Delivered = x.Count(r => r.Status == RegistrationStatus.Delivered) }).ToListAsync();
+            var sectors = DefaultSectors.Concat(beneficiaryBySector.Keys).Concat(activePlansBySector.Select(x => x.Sector)).Concat(requestsBySector.Select(x => x.Sector)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+            SectorStats = sectors.Select(sector =>
+            {
+                var plans = activePlansBySector.FirstOrDefault(x => x.Sector == sector);
+                var requests = requestsBySector.FirstOrDefault(x => x.Sector == sector);
+                var beneficiaries = beneficiaryBySector.GetValueOrDefault(sector);
+                var coverage = beneficiaries == 0 ? (plans?.Capacity > 0 ? 100 : 0) : (int)Math.Round(Math.Min(100d, (plans?.Capacity ?? 0) * 100d / beneficiaries));
+                return new SectorAnalytics(sector, beneficiaries, plans?.Plans ?? 0, plans?.Capacity ?? 0, requests?.Requests ?? 0, requests?.Delivered ?? 0, coverage);
+            }).OrderByDescending(x => x.ActivePlans).ThenBy(x => x.Sector).ToList();
+
+            RecentPlans = await Db.DistributionPlans.AsNoTracking().Include(x => x.Organization).Include(x => x.Registrations).OrderByDescending(x => x.CreatedAt).Take(6).Select(x => new RecentPlan(x.Id, x.Organization == null ? "مؤسسة غير معروفة" : x.Organization.NgoName, x.AidType, x.TargetSector, x.ScheduledDate, x.MaxBeneficiaryCapacity, x.Registrations.Count(r => r.Status != RegistrationStatus.Rejected), x.Status)).ToListAsync();
         }
-
-        Stats = new Api.AnalyticsResponse(activeOrganizations, totalBeneficiaries,
-            draft, authorized, warning, completed, cancelled,
-            (int)delivered, (int)approved, sectorStats);
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Failed to load analytics dashboard");
+            ErrorMessage = "تعذر تحديث التحليلات الآن. أعد المحاولة بعد قليل.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
+
+    private static ChartSlice MakeSlice(string label, int count, string color, int total) => new(label, count, color, total == 0 ? 0 : (int)Math.Round(count * 100d / total));
+    private static string CoverageTone(int value) => value >= 80 ? "coverage-high" : value >= 40 ? "coverage-medium" : "coverage-low";
+    private static string CoverageLabel(int value) => value >= 80 ? "تغطية جيدة" : value >= 40 ? "تغطية جزئية" : "فجوة واضحة";
+    private static string ToArabicAidType(AidKind kind) => kind switch { AidKind.FoodBasket => "سلة غذائية", AidKind.SafeDrinkingWater => "مياه آمنة", AidKind.MedicalSupplies => "مستلزمات طبية", AidKind.ShelterKits => "حقائب إيواء", _ => kind.ToString() };
+    private static string ToArabicPlanStatus(DistributionPlanStatus status) => status switch { DistributionPlanStatus.Authorized => "معتمدة", DistributionPlanStatus.Warning => "تحذير", DistributionPlanStatus.Completed => "مكتملة", DistributionPlanStatus.Cancelled => "ملغية", _ => "مسودة" };
 }

@@ -35,8 +35,11 @@ else
                 {
                     <NavLink class="nav-link" href="aid-distribution"><span class="nav-icon">ج</span><span>الجدولة والتوزيع</span></NavLink>
                     <NavLink class="nav-link" href="gap-detector"><span class="nav-icon">ف</span><span>فجوات التغطية</span></NavLink>
-                    <NavLink class="nav-link" href="analytics"><span class="nav-icon">ت</span><span>التحليلات</span></NavLink>
                     <NavLink class="nav-link" href="volunteers"><span class="nav-icon">ط</span><span>المتطوعون</span></NavLink>
+                }
+                @if (IsAuthenticated)
+                {
+                    <NavLink class="nav-link" href="analytics"><span class="nav-icon">ت</span><span>تحليلات التوزيع</span></NavLink>
                 }
                 @if (IsAdmin)
                 {

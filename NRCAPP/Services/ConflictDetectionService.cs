@@ -29,6 +29,15 @@ public sealed class ConflictDetectionService(ReliefDbContext db, ILogger<Conflic
                 "يرجى إدخال كمية وسعة أكبر من صفر قبل حفظ خطة التوزيع.");
         }
 
+        if (request.ScheduledDate <= DateTimeOffset.UtcNow.AddMinutes(5))
+        {
+            return new DistributionPlanResponse(
+                false,
+                null,
+                DistributionPlanStatus.Warning,
+                "اختر موعداً مستقبلياً للتوزيع. يجب أن يكون الموعد بعد الوقت الحالي بخمس دقائق على الأقل.");
+        }
+
         var organizationExists = await db.Organizations.AnyAsync(x => x.Id == request.OrganizationId && x.IsVerified);
         if (!organizationExists)
         {
@@ -53,7 +62,7 @@ public sealed class ConflictDetectionService(ReliefDbContext db, ILogger<Conflic
 
         if (conflict is not null)
         {
-            var message = $"تم حفظ الخطة كتحذير فقط: يوجد توزيع مشابه في قطاع {targetSector} لنفس نوع المساعدة ضمن نافذة 48 ساعة. غيّر التاريخ أو القطاع أو نوع المساعدة لاعتماد الخطة.";
+            var message = $"تم حفظ الخطة كتحذير فقط، ولذلك لن تظهر للمواطنين: يوجد توزيع مشابه في قطاع {targetSector} لنفس نوع المساعدة ضمن نافذة 48 ساعة. غيّر التاريخ أو القطاع أو نوع المساعدة لإنشاء كوبونة معتمدة ومتاحة للتسجيل.";
             var blockedPlan = new DistributionPlan
             {
                 AidType = request.AidType,
@@ -105,7 +114,8 @@ public sealed class ConflictDetectionService(ReliefDbContext db, ILogger<Conflic
 
         logger.LogInformation("Plan authorized: Id={PlanId}, Sector={Sector}, AidType={AidType}", plan.Id, targetSector, request.AidType);
 
-        return new DistributionPlanResponse(true, plan.Id, plan.Status, "تم اعتماد التوزيع وحفظه في قاعدة البيانات. لا يوجد تكرار ضمن نافذة الفحص.");
+        return new DistributionPlanResponse(true, plan.Id, plan.Status,
+            $"تم اعتماد الكوبونة رقم {plan.Id}. أصبحت ظاهرة الآن لمواطني قطاع {targetSector} ويمكنهم طلب التسجيل فيها.");
     }
 
     private static string blockPlanDetail(string targetSector, DistributionPlanRequest request, DistributionPlan conflict)

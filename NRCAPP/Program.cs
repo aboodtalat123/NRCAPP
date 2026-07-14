@@ -88,6 +88,8 @@ namespace NRCAPP
                     policy.RequireAuthenticatedUser().RequireClaim("actor_type", "Organization"));
                 options.AddPolicy("CitizenOnly", policy =>
                     policy.RequireAuthenticatedUser().RequireClaim("actor_type", "Individual"));
+                options.AddPolicy("PlatformUser", policy =>
+                    policy.RequireAuthenticatedUser().RequireClaim("actor_type", "Admin", "Organization", "Individual"));
                 options.AddPolicy("Operations", policy =>
                     policy.RequireAuthenticatedUser().RequireAssertion(context =>
                         context.User.HasClaim("actor_type", "Admin") ||
@@ -134,6 +136,7 @@ namespace NRCAPP
             builder.Services.AddScoped<ReliefAuthService>();
             builder.Services.AddScoped<AdminAuthService>();
             builder.Services.AddScoped<ConflictDetectionService>();
+            builder.Services.AddScoped<CitizenEnrollmentService>();
             builder.Services.AddScoped<SyncQueueService>();
             builder.Services.AddHttpContextAccessor();
 
@@ -163,6 +166,7 @@ namespace NRCAPP
             app.UseAntiforgery();
 
             MapFormAuthEndpoints(app);
+            MapCitizenFormEndpoints(app);
 
             MapReliefApi(app);
 
@@ -371,7 +375,9 @@ namespace NRCAPP
                 var totalDelivered = await db.DistributionRegistrations
                     .CountAsync(x => x.Status == RegistrationStatus.Delivered);
                 var totalApproved = await db.DistributionRegistrations
-                    .CountAsync(x => x.Status >= RegistrationStatus.Approved);
+                    .CountAsync(x => x.Status == RegistrationStatus.Approved
+                        || x.Status == RegistrationStatus.AttendanceConfirmed
+                        || x.Status == RegistrationStatus.Delivered);
 
                 var sectorStats = new List<SectorStatItem>();
                 foreach (var sector in sectors)
@@ -751,28 +757,16 @@ namespace NRCAPP
 
             citizenApi.MapPost("/citizens/enroll", async (
                 CitizenEnrollmentRequest request,
-                ReliefDbContext db,
+                CitizenEnrollmentService enrollmentService,
                 HttpContext http) =>
             {
                 if (http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value != request.BeneficiaryId.ToString())
                     return Results.Forbid();
-                var exists = await db.DistributionRegistrations
-                    .AnyAsync(x => x.BeneficiaryId == request.BeneficiaryId && x.DistributionPlanId == request.DistributionPlanId);
 
-                if (exists)
-                {
-                    return Results.Ok(new { message = "المواطن مسجل مسبقاً في هذه الخطة." });
-                }
-
-                db.DistributionRegistrations.Add(new DistributionRegistration
-                {
-                    BeneficiaryId = request.BeneficiaryId,
-                    DistributionPlanId = request.DistributionPlanId,
-                    Status = RegistrationStatus.Requested
-                });
-
-                await db.SaveChangesAsync();
-                return Results.Created("/api/citizens/enroll", new { message = "تم إرسال طلب التسجيل للمؤسسة." });
+                var result = await enrollmentService.EnrollAsync(request.BeneficiaryId, request.DistributionPlanId, http.RequestAborted);
+                return result.Success
+                    ? Results.Ok(result)
+                    : Results.BadRequest(result);
             });
 
             citizenApi.MapPost("/citizens/attendance", async (
@@ -831,6 +825,28 @@ namespace NRCAPP
                     distributions
                 });
             });
+        }
+
+        private static void MapCitizenFormEndpoints(WebApplication app)
+        {
+            app.MapPost("/citizen/enroll/form", async (
+                [FromForm] int planId,
+                CitizenEnrollmentService enrollmentService,
+                HttpContext http) =>
+            {
+                var actorType = http.User.FindFirst("actor_type")?.Value;
+                var beneficiaryClaim = http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (actorType != "Individual" || !int.TryParse(beneficiaryClaim, out var beneficiaryId))
+                {
+                    return Results.Redirect("/citizen/login");
+                }
+
+                var result = await enrollmentService.EnrollAsync(beneficiaryId, planId, http.RequestAborted);
+                var outcome = result.Success ? "success" : "error";
+                var message = Uri.EscapeDataString(result.Message);
+                return Results.Redirect($"/citizen/profile?enrollment={outcome}&message={message}#available-coupons");
+            })
+            .RequireAuthorization("CitizenOnly");
         }
 
         private static void MapFormAuthEndpoints(WebApplication app)
