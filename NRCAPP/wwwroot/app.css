@@ -918,6 +918,7 @@ body { background: radial-gradient(circle at 8% 0%, rgba(14,124,114,.10), transp
 /* Smooth operational screens: clear hierarchy, generous breathing room, and strong actions. */
 .content { background: radial-gradient(circle at 92% 0%, rgba(239,184,77,.10), transparent 25rem); }
 .role-page, .feature-page { max-width: 1380px; margin: 0 auto; }
+.feature-page.volunteers-page { display: grid; grid-template-columns: 1fr; align-items: stretch; min-height: 0; }
 .role-header, .volunteer-hero { min-height: 168px; border-radius: 24px; padding: 30px 34px; }
 .citizen-profile-hero { background: linear-gradient(135deg, #155e75 0%, #0e7c72 58%, #176f65 100%); }
 .volunteer-hero { background: linear-gradient(135deg, #173f3b 0%, #0e7c72 68%, #d59b33 170%); }

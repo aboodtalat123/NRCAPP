@@ -1,0 +1,30 @@
+.citizen-profile-page { display: grid; gap: 18px; }
+.citizen-profile-page .citizen-grid { min-width: 0; }
+.citizen-profile-page .form-panel,
+.citizen-profile-page .plans-panel { min-width: 0; padding: 20px; border: 1px solid var(--grch-border); border-radius: 20px; background: rgba(255,255,255,.86); box-shadow: 0 12px 30px rgba(13,52,45,.06); }
+.citizen-profile-page .panel-title { margin-bottom: 18px; }
+.agency-list, .timeline-list { display: grid; gap: 10px; }
+.agency-card { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.agency-copy { min-width: 0; flex: 1 1 220px; }
+.agency-copy b, .agency-copy span { display: block; }
+.agency-copy b { overflow: hidden; color: var(--grch-teal-dark); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.agency-copy span { margin-top: 4px; color: var(--grch-muted); font-size: 11px; font-weight: 800; }
+.enrollment-feedback { flex: 0 0 100%; padding-top: 2px; font-size: 12px; font-weight: 850; }
+.timeline-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px; border: 1px solid rgba(14,124,114,.08); border-radius: 14px; background: #f5fbf9; }
+.timeline-item b, .timeline-item span { display: block; }
+.timeline-item b { color: var(--grch-teal-dark); font-size: 13px; }
+.timeline-item span { margin-top: 4px; color: var(--grch-muted); font-size: 11px; font-weight: 800; }
+.citizen-plans-table { display: grid; gap: 8px; overflow-x: auto; }
+.citizen-plans-table .table-head, .citizen-plans-table .table-row { display: grid; grid-template-columns: minmax(150px,1.3fr) minmax(120px,1fr) minmax(110px,.9fr) minmax(80px,.65fr) minmax(145px,1.1fr); gap: 10px; align-items: center; min-width: 690px; }
+.citizen-plans-table .table-head { padding: 0 12px 7px; color: var(--grch-muted); font-size: 11px; font-weight: 950; }
+.citizen-plans-table .table-row { min-height: 50px; padding: 10px 12px; border-radius: 12px; background: #f5fbf9; color: var(--grch-text); font-size: 12px; font-weight: 800; }
+.citizen-plans-table .table-row > span { min-width: 0; overflow-wrap: anywhere; }
+.citizen-plans-table .mini-button { width: auto; min-height: 34px; margin: 0; padding: 0 10px; white-space: nowrap; }
+@media (max-width: 760px) {
+    .citizen-plans-table { overflow-x: visible; }
+    .citizen-plans-table .table-head { display: none; }
+    .citizen-plans-table .table-row { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; gap: 8px 12px; }
+    .citizen-plans-table .table-row > span:last-child { grid-column: 1 / -1; }
+    .timeline-item { align-items: flex-start; flex-direction: column; }
+    .status-label { align-self: flex-start; }
+}
